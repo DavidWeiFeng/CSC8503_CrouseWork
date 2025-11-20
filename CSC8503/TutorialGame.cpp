@@ -109,6 +109,9 @@ void TutorialGame::UpdateGame(float dt) {
 		useGravity = !useGravity; //Toggle gravity!
 		physics.UseGravity(useGravity);
 	}
+
+	UpdatePlayerMovement(dt);
+
 	//Running certain physics updates in a consistent order might cause some
 	//bias in the calculations - the same objects might keep 'winning' the constraint
 	//allowing the other one to stretch too much etc. Shuffling the order so that it
@@ -291,6 +294,7 @@ GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
 	character->GetPhysicsObject()->InitSphereInertia();
 
 	world.AddGameObject(character);
+	playerObject = character;
 
 	return character;
 }
@@ -465,6 +469,78 @@ void TutorialGame::MoveSelectedObject() {
 			}
 		}
 	}
+}
+
+void TutorialGame::UpdatePlayerMovement(float dt) {
+	if (!playerObject) {
+		return;
+	}
+	PhysicsObject* physicsObject = playerObject->GetPhysicsObject();
+	if (!physicsObject) {
+		return;
+	}
+	(void)dt;
+
+	Matrix4 view = world.GetMainCamera().BuildViewMatrix();
+	Matrix4 camWorld = Matrix::Inverse(view);
+
+	Vector3 rightAxis = Vector3(camWorld.GetColumn(0));
+	Vector3 fwdAxis = -Vector3(camWorld.GetColumn(2));
+
+	rightAxis.y = 0.0f;
+	fwdAxis.y = 0.0f;
+
+	if (Vector::LengthSquared(rightAxis) > 0.0f) {
+		rightAxis = Vector::Normalise(rightAxis);
+	}
+	if (Vector::LengthSquared(fwdAxis) > 0.0f) {
+		fwdAxis = Vector::Normalise(fwdAxis);
+	}
+
+	Vector3 moveForce;
+	if (Window::GetKeyboard()->KeyDown(KeyCodes::W)) {
+		moveForce += fwdAxis;
+	}
+	if (Window::GetKeyboard()->KeyDown(KeyCodes::S)) {
+		moveForce -= fwdAxis;
+	}
+	if (Window::GetKeyboard()->KeyDown(KeyCodes::A)) {
+		moveForce -= rightAxis;
+	}
+	if (Window::GetKeyboard()->KeyDown(KeyCodes::D)) {
+		moveForce += rightAxis;
+	}
+
+	if (Vector::LengthSquared(moveForce) > 0.0f) {
+		moveForce = Vector::Normalise(moveForce);
+		moveForce	*= playerMoveForce;
+		physicsObject->AddForce(moveForce);
+	}
+
+	const bool grounded = IsPlayerGrounded();
+	if (grounded && Window::GetKeyboard()->KeyPressed(KeyCodes::SPACE)) {
+		physicsObject->ApplyLinearImpulse(Vector3(0.0f, playerJumpImpulse, 0.0f));
+	}
+
+	Vector3 linearVelocity = physicsObject->GetLinearVelocity();
+	float damping = grounded ? groundMoveDamping : airMoveDamping;
+
+	linearVelocity.x *= damping;
+	linearVelocity.z *= damping;
+
+	physicsObject->SetLinearVelocity(linearVelocity);
+}
+
+bool TutorialGame::IsPlayerGrounded() const {
+	if (!playerObject || !playerObject->GetPhysicsObject()) {
+		return false;
+	}
+	Vector3 rayOrigin = playerObject->GetTransform().GetPosition();
+	Ray downRay(rayOrigin, Vector3(0, -1, 0));
+
+	RayCollision hit;
+	const float rayLength = 1.1f;
+	return world.Raycast(downRay, hit, true, playerObject) && hit.rayDistance <= rayLength;
 }
 
 void TutorialGame::LockedObjectMovement() {

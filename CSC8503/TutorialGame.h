@@ -41,6 +41,8 @@ namespace NCL {
 			void MoveSelectedObject();
 			void DebugObjectMovement();
 			void LockedObjectMovement();
+			void UpdatePlayerMovement(float dt);
+			bool IsPlayerGrounded() const;
 
 			GameObject* AddFloorToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddSphereToWorld(const NCL::Maths::Vector3& position, float radius, float inverseMass = 10.0f);
@@ -54,6 +56,13 @@ namespace NCL {
 			GameTechRendererInterface& renderer;
 			PhysicsSystem& physics;
 			Controller* controller;
+
+			GameObject* playerObject = nullptr;
+
+			float playerMoveForce	= 150.0f;
+			float playerJumpImpulse = 30.0f;
+			float groundMoveDamping = 0.92f;
+			float airMoveDamping	= 0.98f;
 
 			bool useGravity;
 			bool inSelectionMode;

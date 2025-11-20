@@ -247,7 +247,24 @@ the course of the previous game frame.
 */
 void PhysicsSystem::IntegrateAccel(float dt) 
 {
-
+	gameWorld.OperateOnContents(
+		[this, dt](GameObject* o) {
+			PhysicsObject* phys = o->GetPhysicsObject();
+			if (!phys) {
+				return;
+			}
+			const float invMass = phys->GetInverseMass();
+			if (invMass <= 0.0f) {
+				return;
+			}
+			Vector3 accel;
+			if (applyGravity) {
+				accel += gravity; //gravity is already acceleration
+			}
+			accel += phys->GetForce() * invMass;
+			phys->SetLinearVelocity(phys->GetLinearVelocity() + accel * dt);
+		}
+	);
 }
 
 /*
@@ -258,7 +275,30 @@ the world, looking for collisions.
 */
 void PhysicsSystem::IntegrateVelocity(float dt) 
 {
+	gameWorld.OperateOnContents(
+		[this, dt](GameObject* o) {
+			PhysicsObject* phys = o->GetPhysicsObject();
+			if (!phys) {
+				return;
+			}
+			const float invMass = phys->GetInverseMass();
+			if (invMass <= 0.0f) {
+				return;
+			}
 
+			Transform& transform = o->GetTransform();
+			Vector3 position = transform.GetPosition();
+			Vector3 linearVelocity = phys->GetLinearVelocity();
+
+			position += linearVelocity * dt;
+
+			linearVelocity *= globalDamping;
+
+			transform.SetPosition(position);
+			phys->SetLinearVelocity(linearVelocity);
+			transform.UpdateMatrix();
+		}
+	);
 }
 
 /*
