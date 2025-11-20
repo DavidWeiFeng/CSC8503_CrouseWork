@@ -9,6 +9,7 @@
 #include "Debug.h"
 #include "Window.h"
 #include <functional>
+#include <algorithm>
 using namespace NCL;
 using namespace CSC8503;
 
@@ -200,6 +201,29 @@ multiple frames won't flood the set with duplicates.
 */
 void PhysicsSystem::BasicCollisionDetection() 
 {
+	GameObjectIterator first;
+	GameObjectIterator last;
+	gameWorld.GetObjectIterators(first, last);
+
+	for (auto i = first; i != last; ++i) {
+		for (auto j = i + 1; j != last; ++j) {
+			GameObject* a = *i;
+			GameObject* b = *j;
+
+			PhysicsObject* physA = a->GetPhysicsObject();
+			PhysicsObject* physB = b->GetPhysicsObject();
+			if (!physA && !physB) {
+				continue;
+			}
+
+			CollisionDetection::CollisionInfo info;
+			if (CollisionDetection::ObjectIntersection(a, b, info)) {
+				info.framesLeft = numCollisionFrames;
+				allCollisions.insert(info);
+				ImpulseResolveCollision(*a, *b, info.point);
+			}
+		}
+	}
 }
 
 /*
@@ -210,7 +234,61 @@ so that objects separate back out.
 */
 void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, CollisionDetection::ContactPoint& p) const 
 {
+	PhysicsObject* physA = a.GetPhysicsObject();
+	PhysicsObject* physB = b.GetPhysicsObject();
 
+	if (!physA || !physB) {
+		return;
+	}
+
+	float inverseMassA = physA->GetInverseMass();
+	float inverseMassB = physB->GetInverseMass();
+
+	if (inverseMassA + inverseMassB == 0.0f) {
+		return;
+	}
+
+	Transform& transformA = a.GetTransform();
+	Transform& transformB = b.GetTransform();
+
+	Vector3 relativePosA = p.localA;
+	Vector3 relativePosB = p.localB;
+
+	Vector3 angVelA = physA->GetAngularVelocity();
+	Vector3 angVelB = physB->GetAngularVelocity();
+
+	Vector3 velA = physA->GetLinearVelocity() + Vector::Cross(angVelA, relativePosA);
+	Vector3 velB = physB->GetLinearVelocity() + Vector::Cross(angVelB, relativePosB);
+
+	Vector3 contactVel = velA - velB;
+
+	float impulseForce = Vector::Dot(contactVel, p.normal);
+
+	if (impulseForce > 0.0f) {
+		return;
+	}
+
+	float totalInverseMass = inverseMassA + inverseMassB;
+
+	float elasticity = 0.66f;
+	float j = -(1.0f + elasticity) * impulseForce;
+	j /= totalInverseMass;
+
+	Vector3 impulse = p.normal * j;
+
+	physA->SetLinearVelocity(physA->GetLinearVelocity() + impulse * inverseMassA);
+	physB->SetLinearVelocity(physB->GetLinearVelocity() - impulse * inverseMassB);
+
+	// Positional correction to separate penetrating bodies
+	const float penetrationAllowance = 0.01f;
+	float penetration = std::max(p.penetration - penetrationAllowance, 0.0f);
+	if (penetration > 0.0f) {
+		Vector3 movePerIMass = p.normal * (penetration / totalInverseMass);
+		transformA.SetPosition(transformA.GetPosition() + movePerIMass * inverseMassA);
+		transformB.SetPosition(transformB.GetPosition() - movePerIMass * inverseMassB);
+		transformA.UpdateMatrix();
+		transformB.UpdateMatrix();
+	}
 }
 
 /*

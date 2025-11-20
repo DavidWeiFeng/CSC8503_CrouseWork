@@ -6,6 +6,8 @@
 #include "Window.h"
 #include "Maths.h"
 #include "Debug.h"
+#include <cfloat>
+#include <cmath>
 
 using namespace NCL;
 
@@ -53,7 +55,49 @@ bool CollisionDetection::RayBoxIntersection(const Ray&r, const Vector3& boxPos, 
 }
 
 bool CollisionDetection::RayAABBIntersection(const Ray&r, const Transform& worldTransform, const AABBVolume& volume, RayCollision& collision) {
-	return false;
+	Vector3 boxPos	= worldTransform.GetPosition();
+	Vector3 boxSize = volume.GetHalfDimensions();
+
+	Vector3 rayPos = r.GetPosition();
+	Vector3 rayDir = r.GetDirection();
+
+	Vector3 tVals = boxPos - rayPos;
+	Vector3 tMins = tVals - boxSize;
+	Vector3 tMaxs = tVals + boxSize;
+
+	float tNear = -FLT_MAX;
+	float tFar  = FLT_MAX;
+
+	for (int i = 0; i < 3; ++i) {
+		if (rayDir[i] == 0.0f) {
+			if (tMins[i] > 0 || tMaxs[i] < 0) {
+				return false;
+			}
+		}
+		else {
+			float newTMin = tMins[i] / rayDir[i];
+			float newTMax = tMaxs[i] / rayDir[i];
+
+			if (newTMin > newTMax) {
+				std::swap(newTMin, newTMax);
+			}
+			if (newTMin > tNear) {
+				tNear = newTMin;
+			}
+			if (newTMax < tFar) {
+				tFar = newTMax;
+			}
+			if (tNear > tFar) {
+				return false;
+			}
+			if (tFar < 0) {
+				return false;
+			}
+		}
+	}
+	collision.rayDistance = tNear < 0.0f ? tFar : tNear;
+	collision.collidedAt  = rayPos + (rayDir * collision.rayDistance);
+	return true;
 }
 
 bool CollisionDetection::RayOBBIntersection(const Ray&r, const Transform& worldTransform, const OBBVolume& volume, RayCollision& collision) {
@@ -61,7 +105,31 @@ bool CollisionDetection::RayOBBIntersection(const Ray&r, const Transform& worldT
 }
 
 bool CollisionDetection::RaySphereIntersection(const Ray&r, const Transform& worldTransform, const SphereVolume& volume, RayCollision& collision) {
-	return false;
+	Vector3 spherePos = worldTransform.GetPosition();
+	Vector3 rayPos = r.GetPosition();
+	Vector3 rayDir = r.GetDirection();
+
+	Vector3 sphereRelPos = rayPos - spherePos;
+	float sphereRadius = volume.GetRadius();
+
+	float a = Vector::Dot(rayDir, rayDir);
+	float b = 2.0f * Vector::Dot(sphereRelPos, rayDir);
+	float c = Vector::Dot(sphereRelPos, sphereRelPos) - (sphereRadius * sphereRadius);
+
+	float d = (b * b) - (4.0f * a * c);
+	if (d < 0.0f) {
+		return false;
+	}
+	float t = (-b - sqrt(d)) / (2.0f * a);
+	if (t < 0.0f) {
+		t = (-b + sqrt(d)) / (2.0f * a);
+	}
+	if (t < 0.0f) {
+		return false;
+	}
+	collision.rayDistance = t;
+	collision.collidedAt  = rayPos + rayDir * t;
+	return true;
 }
 
 bool CollisionDetection::RayCapsuleIntersection(const Ray& r, const Transform& worldTransform, const CapsuleVolume& volume, RayCollision& collision) {
@@ -155,19 +223,76 @@ bool CollisionDetection::AABBTest(const Vector3& posA, const Vector3& posB, cons
 //AABB/AABB Collisions
 bool CollisionDetection::AABBIntersection(const AABBVolume& volumeA, const Transform& worldTransformA,
 	const AABBVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo) {
-	return false;
+	Vector3 boxAPos		= worldTransformA.GetPosition();
+	Vector3 boxBPos		= worldTransformB.GetPosition();
+	Vector3 boxASize	= volumeA.GetHalfDimensions();
+	Vector3 boxBSize	= volumeB.GetHalfDimensions();
+
+	if (!AABBTest(boxAPos, boxBPos, boxASize, boxBSize)) {
+		return false;
+	}
+
+	Vector3 delta		= boxBPos - boxAPos;
+	Vector3 totalSize	= boxASize + boxBSize;
+	Vector3 penetration = totalSize - Vector3(fabs(delta.x), fabs(delta.y), fabs(delta.z));
+
+	if (penetration.x < penetration.y && penetration.x < penetration.z) {
+		int sign = delta.x < 0 ? -1 : 1;
+		collisionInfo.AddContactPoint(Vector3(), Vector3(), Vector3((float)sign, 0, 0), penetration.x);
+	}
+	else if (penetration.y < penetration.z) {
+		int sign = delta.y < 0 ? -1 : 1;
+		collisionInfo.AddContactPoint(Vector3(), Vector3(), Vector3(0, (float)sign, 0), penetration.y);
+	}
+	else {
+		int sign = delta.z < 0 ? -1 : 1;
+		collisionInfo.AddContactPoint(Vector3(), Vector3(), Vector3(0, 0, (float)sign), penetration.z);
+	}
+	return true;
 }
 
 //Sphere / Sphere Collision
 bool CollisionDetection::SphereIntersection(const SphereVolume& volumeA, const Transform& worldTransformA,
 	const SphereVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo) {
-	return false;
+	Vector3 delta = worldTransformB.GetPosition() - worldTransformA.GetPosition();
+	float radiusA = volumeA.GetRadius();
+	float radiusB = volumeB.GetRadius();
+	float sumRadius = radiusA + radiusB;
+
+	float distSq = Vector::LengthSquared(delta);
+	if (distSq > (sumRadius * sumRadius)) {
+		return false;
+	}
+	float distance = sqrtf(distSq);
+	Vector3 normal = distance > 0.0f ? delta * (1.0f / distance) : Vector3(0, 1, 0);
+	float penetration = sumRadius - distance;
+
+	collisionInfo.AddContactPoint(Vector3(), Vector3(), normal, penetration);
+	return true;
 }
 
 //AABB - Sphere Collision
 bool CollisionDetection::AABBSphereIntersection(const AABBVolume& volumeA, const Transform& worldTransformA,
 	const SphereVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo) {
-	return false;
+	Vector3 boxPos		= worldTransformA.GetPosition();
+	Vector3 boxSize		= volumeA.GetHalfDimensions();
+	Vector3 spherePos	= worldTransformB.GetPosition();
+	float sphereRadius	= volumeB.GetRadius();
+
+	Vector3 delta = spherePos - boxPos;
+	Vector3 closestPoint = Vector::Clamp(delta, -boxSize, boxSize);
+	Vector3 localPoint   = delta - closestPoint;
+
+	float distSq = Vector::LengthSquared(localPoint);
+	if (distSq > (sphereRadius * sphereRadius)) {
+		return false;
+	}
+
+	float distance = sqrtf(distSq);
+	Vector3 normal = distance > 0.0f ? localPoint * (1.0f / distance) : Vector3(0, 1, 0);
+	float penetration = sphereRadius - distance;
+	collisionInfo.AddContactPoint(Vector3(), Vector3(), normal, penetration);
+	return true;
 }
 
 bool  CollisionDetection::OBBSphereIntersection(const OBBVolume& volumeA, const Transform& worldTransformA,
