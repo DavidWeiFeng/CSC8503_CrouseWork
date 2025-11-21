@@ -1,4 +1,4 @@
-#include "CollisionDetection.h"
+﻿#include "CollisionDetection.h"
 #include "CollisionVolume.h"
 #include "AABBVolume.h"
 #include "OBBVolume.h"
@@ -110,7 +110,7 @@ bool CollisionDetection::RaySphereIntersection(const Ray&r, const Transform& wor
 	Vector3 rayDir = r.GetDirection();
 
 	Vector3 sphereRelPos = rayPos - spherePos;
-	float sphereRadius = volume.GetRadius();
+	float sphereRadius = volume.GetRadius(); // 球心到射线起点的向量。
 
 	float a = Vector::Dot(rayDir, rayDir);
 	float b = 2.0f * Vector::Dot(sphereRelPos, rayDir);

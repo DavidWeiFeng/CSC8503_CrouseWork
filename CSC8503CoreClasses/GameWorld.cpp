@@ -1,4 +1,4 @@
-#include "GameWorld.h"
+﻿#include "GameWorld.h"
 #include "GameObject.h"
 #include "Constraint.h"
 #include "CollisionDetection.h"
@@ -89,9 +89,11 @@ bool GameWorld::Raycast(Ray& r, RayCollision& closestCollision, bool closestObje
 	RayCollision collision;
 
 	for (auto& i : gameObjects) {
+		// 1. 过滤：如果没有碰撞体积（比如纯逻辑物体、光源），直接跳过
 		if (!i->GetBoundingVolume()) { //objects might not be collideable etc...
 			continue;
 		}
+		// 2. 过滤：如果是“忽略名单”里的物体（比如发射子弹的玩家自己），直接跳过
 		if (i == ignoreThis) {
 			continue;
 		}
