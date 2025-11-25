@@ -1,0 +1,44 @@
+Assessment Brief
+In this coursework you are to utilise the provided codebase to develop a game that includes physics, networking, and AI, to allow you to practice your coding skills, and reinforce your knowledge in these areas. The game takes place in a simple 3D environment, where the player controls an avatar using physics calculations, and must employ collision detection and resolution.
+
+The codebase you have been provided with serves as a good starting point for the development of your game. The goal of the coursework is to then enhance this codebase with realistic physics and collisions, to allow the basics of the game to be played. From there, AI techniques can be used to add in some more complex movements of enemies that the player must interact with. You do not need to spend any time implementing graphical techniques, or finding new meshes and textures to apply to your game - the purpose of this coursework is just to investigate the new concepts introduced in the lectures and tutorials.
+
+The coursework is divided into two parts. The first will primarily cover physics calculations and simple state machines, while the second covers networking and pathfinding. While the exact game implementation is up to you, the following video should provide some inspiration as to what could be replicated in your program: 
+https://www.youtube.com/watch?v=W3L5ifvKgxULinks to an external site.
+
+
+Coursework Part A: No Pane, No Game
+
+It is a hard life being a courier! You have been tasked with taking some precious, easily breakable items to their destinations, in a world filled with hazards and puzzles. Dropping or otherwise breaking the items will result in being fired from your job. To make matters worse, the local streets are littered with obstacles and mischievous characters who intend on making your life difficult. The player object should be controlled with the keyboard and mouse, via the application of forces or impulses. You may choose to apply torque to rotate the player object, or use functions to automatically change its orientation to the desired direction. Players can earn points by solving puzzles, and getting items from the starting position to the end zone without breaking them. 
+
+If the player successfully delivers all of the items, or the time runs out, then the game will game end, and the player is shown their final score. The game should feature a simple menu, allowing the player to play again, or exit the game. During the game, the player’s current score, and number of items left to deliver should be displayed on screen.
+
+The game you create should take place within a single virtual environment - the exact composition of this is up to you, but it should have obstacles placed around (built using a combination of any collision detection and resolution types that you can create) to make the world more interesting. The level should contain a number of simple challenges that the player must complete to open paths to the end zone. Pushing an item onto a button to open a door, or navigating a set of narrow platforms to find a key would be examples of these challenges. The level should also have a number of enemy AI characters. These characters should patrol the world – if the player comes near them, they should chase the player who will ‘die’ if the AI reaches them, causing them to reset back to their initial position. There should be some usage of raycasting within the world. This can be to help the player in some way (maybe the player can find a grappling hook powerup?), or it could be used as part of the AI (perhaps the enemy AI speeds up if it can see the player?).
+
+ 
+
+Coursework Part B: Borosilicate Buddies
+
+Everyone knows games are more fun with multiple players! The game should be expanded to include a networked multiplayer component. In this game mode, two players must work together to carry a particularly heavy item from the starting point to the end zone. The game environment should be adjusted accordingly. The players can only move the item if they are both carrying it. A player can choose to stop carrying the item temporarily (e.g. in order to complete a puzzle), but in such situations the other player cannot move.
+
+The menu should be expanded to allow the creation of a server, or for connecting to an already running server by IP. The server should maintain a high-score table of best point totals achieved during gameplay – this should be updated and sent as appropriate to connecting players so that it can be viewed by pressing a key.
+
+The game should also feature an expanded area containing new NPC characters. Somewhere in the game environment there should be a hedge maze, patrolled by an angry goose, who particularly dislikes couriers carrying easily breakable items.  There is also a rival courier, who will intelligently travel the game world looking for items to throw stones at. Both new AI opponents should be controlled by the server.
+
+Deliverable Items – NESS Submission
+Source code and clean Visual Studio solution. Zip your work folder, minus the .vs and .git folders, if present.
+A document containing at least four screenshots with descriptions, a list of any key/mouse presses that perform actions, and a link to a YouTube video of your coursework running.
+Marks Available (100)
+Coursework Part A (50 marks)
+Implementations of collision detection (AABB, Sphere, OBB, plane), collision resolution (impulse, projection, or penalty, with gameplay effects), application of forces, constraints, and simple state based artificial intelligence gain up to 50 marks.
+
+ 
+
+A ‘first class’ submission would allow the player to move their character via the application forces, with the program successfully detecting and resolving collisions with the environment, and apply gameplay effects from collision interactions. The environment would contain at least one AI controlled character that uses state machine logic appropriately.
+
+Coursework Part B (50 marks)
+Implementations of networking (high score table + gameplay mechanics), advanced state machine and AI logic usage (menu system, courier character AI), and pathfinding (the goose) gain up to 50 marks.
+
+ 
+
+A ‘first class’ submission would allow scores to be send across the network to connect players, for the players to be able to send and receive packets that allow their character to move with consistency, for the angry goose to be able to use appropriate pathfinding to move towards a player, and for the courier to use appropriate advanced AI techniques. The main menu should use appropriate state machine techniques for its operation.

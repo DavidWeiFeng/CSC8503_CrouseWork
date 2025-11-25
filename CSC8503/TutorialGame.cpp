@@ -24,6 +24,7 @@
 
 using namespace NCL;
 using namespace CSC8503;
+using namespace NCL::Maths;
 
 TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRenderer, PhysicsSystem& inPhysics)
 	:	world(inWorld),
@@ -167,6 +168,7 @@ void TutorialGame::UpdateGame(float dt) {
 
 	SelectObject();
 	MoveSelectedObject();	
+	HandlePlayerMovement(dt);
 	
 	world.OperateOnContents(
 		[dt](GameObject* o) {
@@ -187,6 +189,8 @@ void TutorialGame::InitCamera() {
 void TutorialGame::InitWorld() {
 	world.ClearAndErase();
 	physics.Clear();
+	playerObject = nullptr;
+	selectionObject = nullptr;
 
 	CreatedMixedGrid(15, 15, 3.5f, 3.5f);
 
@@ -340,7 +344,7 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
 }
 
 void TutorialGame::InitGameExamples() {
-	AddPlayerToWorld(Vector3(0, 5, 0));
+	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
 	AddEnemyToWorld(Vector3(5, 5, 0));
 	AddBonusToWorld(Vector3(10, 5, 0));
 }
@@ -529,5 +533,52 @@ void TutorialGame::DebugObjectMovement() {
 		if (Window::GetKeyboard()->KeyDown(KeyCodes::NUM5)) {
 			selectionObject->GetPhysicsObject()->AddForce(Vector3(0, -10, 0));
 		}
+	}
+}
+
+void TutorialGame::HandlePlayerMovement(float dt) {
+	if (!playerObject) {
+		return;
+	}
+	PhysicsObject* phys = playerObject->GetPhysicsObject();
+	if (!phys) {
+		return;
+	}
+
+	Matrix4 view = world.GetMainCamera().BuildViewMatrix();
+	Matrix4 camWorld = Matrix::Inverse(view);
+
+	Vector3 rightAxis = Vector3(camWorld.GetColumn(0));
+	Vector3 fwdAxis = Vector::Cross(Vector3(0, 1, 0), rightAxis);
+	rightAxis.y = 0.0f;
+	fwdAxis.y = 0.0f;
+	rightAxis = Vector::Normalise(rightAxis);
+	fwdAxis = Vector::Normalise(fwdAxis);
+
+	Vector3 moveDir;
+	auto* keyboard = Window::GetKeyboard();
+
+	if (keyboard->KeyDown(KeyCodes::W)) {
+		moveDir += fwdAxis;
+	}
+	if (keyboard->KeyDown(KeyCodes::S)) {
+		moveDir -= fwdAxis;
+	}
+	if (keyboard->KeyDown(KeyCodes::A)) {
+		moveDir -= rightAxis;
+	}
+	if (keyboard->KeyDown(KeyCodes::D)) {
+		moveDir += rightAxis;
+	}
+
+	if (Vector::LengthSquared(moveDir) > 0.0f) {
+		moveDir = Vector::Normalise(moveDir);
+		phys->AddForce(moveDir * playerMoveForce);
+	}
+
+	Vector3 velocity = phys->GetLinearVelocity();
+	float speed = Vector::Length(velocity);
+	if (speed > playerMaxSpeed && speed > 0.0f) {
+		phys->SetLinearVelocity(Vector::Normalise(velocity) * playerMaxSpeed);
 	}
 }

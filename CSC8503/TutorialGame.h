@@ -41,6 +41,7 @@ namespace NCL {
 			void MoveSelectedObject();
 			void DebugObjectMovement();
 			void LockedObjectMovement();
+			void HandlePlayerMovement(float dt);
 
 			GameObject* AddFloorToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddSphereToWorld(const NCL::Maths::Vector3& position, float radius, float inverseMass = 10.0f);
@@ -50,6 +51,7 @@ namespace NCL {
 			GameObject* AddEnemyToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddBonusToWorld(const NCL::Maths::Vector3& position);
 
+			GameObject* playerObject = nullptr;
 			GameWorld& world;
 			GameTechRendererInterface& renderer;
 			PhysicsSystem& physics;
@@ -59,6 +61,8 @@ namespace NCL {
 			bool inSelectionMode;
 
 			float		forceMagnitude;
+			float		playerMoveForce = 80.0f;
+			float		playerMaxSpeed  = 25.0f;
 
 			GameObject* selectionObject = nullptr;
 
