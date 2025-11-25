@@ -6,8 +6,11 @@
 #include "Window.h"
 #include "Maths.h"
 #include "Debug.h"
+#include <algorithm>
+#include <limits>
 
 using namespace NCL;
+using namespace NCL::Maths;
 
 bool CollisionDetection::RayPlaneIntersection(const Ray&r, const Plane&p, RayCollision& collisions) {
 	float ln = Vector::Dot(p.GetNormal(), r.GetDirection());
@@ -49,23 +52,151 @@ bool CollisionDetection::RayIntersection(const Ray& r,GameObject& object, RayCol
 }
 
 bool CollisionDetection::RayBoxIntersection(const Ray&r, const Vector3& boxPos, const Vector3& boxSize, RayCollision& collision) {
-	return false;
+	// Slab method for axis aligned box (boxSize = half extents)
+	Vector3 rayDir = r.GetDirection();
+	Vector3 rayPos = r.GetPosition();
+
+	auto SafeInv = [](float v) {
+		const float eps = 1e-8f;
+		if (fabs(v) < eps) {
+			return std::numeric_limits<float>::infinity();
+		}
+		return 1.0f / v;
+	};
+
+	Vector3 invDir = Vector3(SafeInv(rayDir.x), SafeInv(rayDir.y), SafeInv(rayDir.z));
+
+	Vector3 tMin = (boxPos - boxSize - rayPos) * invDir;
+	Vector3 tMax = (boxPos + boxSize - rayPos) * invDir;
+
+	// Handle negative directions
+	if (tMin.x > tMax.x) std::swap(tMin.x, tMax.x);
+	if (tMin.y > tMax.y) std::swap(tMin.y, tMax.y);
+	if (tMin.z > tMax.z) std::swap(tMin.z, tMax.z);
+
+	float tNear = std::max(tMin.x, std::max(tMin.y, tMin.z));
+	float tFar  = std::min(tMax.x, std::min(tMax.y, tMax.z));
+
+	if (tNear > tFar || tFar < 0.0f) {
+		return false;
+	}
+
+	float tHit = tNear >= 0.0f ? tNear : tFar;
+	collision.rayDistance = tHit;
+	collision.collidedAt  = rayPos + rayDir * tHit;
+	return true;
 }
 
 bool CollisionDetection::RayAABBIntersection(const Ray&r, const Transform& worldTransform, const AABBVolume& volume, RayCollision& collision) {
-	return false;
+	Vector3 boxPos  = worldTransform.GetPosition();
+	Vector3 halfDim = volume.GetHalfDimensions();
+	Vector3 worldScale = worldTransform.GetScale();
+	halfDim = Vector3(halfDim.x * worldScale.x, halfDim.y * worldScale.y, halfDim.z * worldScale.z);
+	return RayBoxIntersection(r, boxPos, halfDim, collision);
 }
 
 bool CollisionDetection::RayOBBIntersection(const Ray&r, const Transform& worldTransform, const OBBVolume& volume, RayCollision& collision) {
-	return false;
+	Vector3 boxSize = volume.GetHalfDimensions();
+
+	Quaternion q = worldTransform.GetOrientation();
+	Matrix3 invOrientation = Quaternion::RotationMatrix<Matrix3>(q.Conjugate());
+	Matrix3 orientation     = Quaternion::RotationMatrix<Matrix3>(q);
+
+	Vector3 localRayPos = invOrientation * (r.GetPosition() - worldTransform.GetPosition());
+	Vector3 localRayDir = invOrientation * r.GetDirection();
+
+	Ray localRay(localRayPos, localRayDir);
+	RayCollision localCollision;
+
+	bool collided = RayBoxIntersection(localRay, Vector3(), boxSize, localCollision);
+	if (collided) {
+		collision.rayDistance = localCollision.rayDistance;
+		collision.collidedAt  = worldTransform.GetPosition() + orientation * localCollision.collidedAt;
+	}
+	return collided;
 }
 
 bool CollisionDetection::RaySphereIntersection(const Ray&r, const Transform& worldTransform, const SphereVolume& volume, RayCollision& collision) {
-	return false;
+	Vector3 spherePos   = worldTransform.GetPosition();
+	Vector3 scale       = worldTransform.GetScale();
+	float   sphereRadius = volume.GetRadius() * std::max(scale.x, std::max(scale.y, scale.z));
+
+	Vector3 dir = r.GetDirection();
+	Vector3 diff = spherePos - r.GetPosition();
+
+	float t = Vector::Dot(diff, dir);
+	if (t < 0.0f) {
+		return false; // sphere is behind ray
+	}
+
+	Vector3 closestPoint = r.GetPosition() + dir * t;
+	float distSq = Vector::LengthSquared(spherePos - closestPoint);
+	float radiusSq = sphereRadius * sphereRadius;
+
+	if (distSq > radiusSq) {
+		return false;
+	}
+
+	float thc = sqrt(radiusSq - distSq);
+	float tHit = t - thc;
+	if (tHit < 0.0f) {
+		tHit = t + thc; // inside sphere case
+	}
+
+	collision.rayDistance = tHit;
+	collision.collidedAt  = r.GetPosition() + dir * tHit;
+	return true;
 }
 
 bool CollisionDetection::RayCapsuleIntersection(const Ray& r, const Transform& worldTransform, const CapsuleVolume& volume, RayCollision& collision) {
-	return false;
+	// Treat capsule as segment with spheres on ends
+	Quaternion q = worldTransform.GetOrientation();
+	Matrix3 orientation = Quaternion::RotationMatrix<Matrix3>(q);
+
+	Vector3 up = orientation * Vector3(0, 1, 0);
+	Vector3 p0 = worldTransform.GetPosition() - up * volume.GetHalfHeight();
+	Vector3 p1 = worldTransform.GetPosition() + up * volume.GetHalfHeight();
+
+	Vector3 d = p1 - p0;           // segment direction
+	Vector3 m = r.GetPosition() - p0;
+	Vector3 n = r.GetDirection();
+
+	float md = Vector::Dot(m, d);
+	float nd = Vector::Dot(n, d);
+	float dd = Vector::Dot(d, d);
+
+	float t = 0.0f;
+	float s = 0.0f;
+
+	const float kEpsilon = 1e-6f;
+	if (dd > kEpsilon) {
+		s = md / dd;
+	}
+
+	// Clamp s to segment
+	s = std::min(1.0f, std::max(0.0f, s));
+
+	// Project ray to closest point on segment
+	Vector3 closestOnSeg = p0 + d * s;
+	Vector3 segToRayOrigin = r.GetPosition() - closestOnSeg;
+	float proj = Vector::Dot(segToRayOrigin, n);
+	t = -proj;
+
+	if (t < 0.0f) {
+		return false;
+	}
+
+	Vector3 closestPoint = r.GetPosition() + n * t;
+	float distSq = Vector::LengthSquared(closestPoint - closestOnSeg);
+	float radiusSq = volume.GetRadius() * volume.GetRadius();
+
+	if (distSq > radiusSq) {
+		return false;
+	}
+
+	collision.rayDistance = t;
+	collision.collidedAt  = closestPoint;
+	return true;
 }
 
 bool CollisionDetection::ObjectIntersection(GameObject* a, GameObject* b, CollisionInfo& collisionInfo) {
