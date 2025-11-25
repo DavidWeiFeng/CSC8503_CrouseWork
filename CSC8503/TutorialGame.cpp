@@ -80,6 +80,23 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 	InitWorld();
 }
 
+bool TutorialGame::IsPlayerGrounded() const {
+	if (!playerObject) {
+		return false;
+	}
+	RayCollision collision;
+	Vector3 origin = playerObject->GetTransform().GetPosition();
+	origin.y += 0.1f; // slight offset above feet
+	Ray downRay(origin, Vector3(0, -1, 0));
+
+	if (world.Raycast(downRay, collision, true, playerObject)) {
+		if (collision.rayDistance <= (playerRadius + 0.2f)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /**
  * @brief 教程游戏的析构函数。
  */
@@ -624,6 +641,9 @@ void TutorialGame::HandlePlayerMovement(float dt) {
 		return;
 	}
 
+	// Ground check via short raycast downward
+	bool grounded = IsPlayerGrounded();
+
 	Matrix4 view = world.GetMainCamera().BuildViewMatrix();
 	Matrix4 camWorld = Matrix::Inverse(view);
 
@@ -655,9 +675,26 @@ void TutorialGame::HandlePlayerMovement(float dt) {
 		phys->AddForce(moveDir * playerMoveForce);
 	}
 
+	// Jump only when grounded
+	if (grounded && keyboard->KeyPressed(KeyCodes::SPACE)) {
+		phys->ApplyLinearImpulse(Vector3(0, playerJumpImpulse, 0));
+	}
+
 	Vector3 velocity = phys->GetLinearVelocity();
+	// Apply planar friction
+	Vector3 horizVel = Vector3(velocity.x, 0.0f, velocity.z);
+	if (Vector::LengthSquared(horizVel) > 0.0f) {
+		float friction = grounded ? groundFriction : airFriction;
+		horizVel *= friction;
+		velocity.x = horizVel.x;
+		velocity.z = horizVel.z;
+	}
+
 	float speed = Vector::Length(velocity);
 	if (speed > playerMaxSpeed && speed > 0.0f) {
 		phys->SetLinearVelocity(Vector::Normalise(velocity) * playerMaxSpeed);
+	}
+	else {
+		phys->SetLinearVelocity(velocity);
 	}
 }

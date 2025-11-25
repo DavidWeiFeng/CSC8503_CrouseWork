@@ -42,6 +42,7 @@ namespace NCL {
 			void DebugObjectMovement();
 			void LockedObjectMovement();
 			void HandlePlayerMovement(float dt);
+			bool IsPlayerGrounded() const;
 
 			GameObject* AddFloorToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddSphereToWorld(const NCL::Maths::Vector3& position, float radius, float inverseMass = 10.0f);
@@ -63,6 +64,10 @@ namespace NCL {
 			float		forceMagnitude;
 			float		playerMoveForce = 80.0f;
 			float		playerMaxSpeed  = 25.0f;
+			float		playerJumpImpulse = 12.0f;
+			float		groundFriction = 0.9f;
+			float		airFriction    = 0.99f;
+			float		playerRadius   = 1.0f;
 
 			GameObject* selectionObject = nullptr;
 
