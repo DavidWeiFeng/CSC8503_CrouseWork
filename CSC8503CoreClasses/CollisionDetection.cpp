@@ -386,9 +386,35 @@ bool CollisionDetection::AABBSphereIntersection(const AABBVolume& volumeA, const
 		return false;
 	}
 
-	float dist = sqrt(std::max(distSq, 0.0001f));
-	Vector3 normal = delta / dist;
-	float penetration = sphereRadius - dist;
+	// Handle case where sphere center is inside the box (delta ~ 0)
+	Vector3 normal;
+	float penetration = 0.0f;
+	if (distSq < 1e-6f) {
+		// compute smallest distance to each face to push sphere out
+		float dxMin = (spherePos.x - boxMin.x);
+		float dxMax = (boxMax.x - spherePos.x);
+		float dyMin = (spherePos.y - boxMin.y);
+		float dyMax = (boxMax.y - spherePos.y);
+		float dzMin = (spherePos.z - boxMin.z);
+		float dzMax = (boxMax.z - spherePos.z);
+
+		float minDist = dxMin;
+		normal = Vector3(-1, 0, 0);
+
+		if (dxMax < minDist) { minDist = dxMax; normal = Vector3(1, 0, 0); }
+		if (dyMin < minDist) { minDist = dyMin; normal = Vector3(0, -1, 0); }
+		if (dyMax < minDist) { minDist = dyMax; normal = Vector3(0, 1, 0); }
+		if (dzMin < minDist) { minDist = dzMin; normal = Vector3(0, 0, -1); }
+		if (dzMax < minDist) { minDist = dzMax; normal = Vector3(0, 0, 1); }
+
+		penetration = sphereRadius - minDist;
+		closestPoint = spherePos + normal * (sphereRadius - penetration);
+	}
+	else {
+		float dist = sqrt(distSq);
+		normal = delta / dist;
+		penetration = sphereRadius - dist;
+	}
 
 	collisionInfo.AddContactPoint(closestPoint - boxPos, closestPoint - spherePos, normal, penetration);
 	collisionInfo.framesLeft = 1;

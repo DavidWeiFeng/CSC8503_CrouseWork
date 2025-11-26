@@ -445,19 +445,20 @@ void TutorialGame::CreateSphereGrid(int numRows, int numCols, float rowSpacing, 
 void TutorialGame::CreatedMixedGrid(int numRows, int numCols, float rowSpacing, float colSpacing) {
 	float sphereRadius = 1.0f;
 	Vector3 cubeDims = Vector3(1, 1, 1);
+	AddCubeToWorld(Vector3(10,10,10), cubeDims);
+	AddSphereToWorld(Vector3(9,9,9), sphereRadius);
+	//for (int x = 0; x < numCols; ++x) {
+	//	for (int z = 0; z < numRows; ++z) {
+	//		Vector3 position = Vector3(x * colSpacing, 10.0f, z * rowSpacing);
 
-	for (int x = 0; x < numCols; ++x) {
-		for (int z = 0; z < numRows; ++z) {
-			Vector3 position = Vector3(x * colSpacing, 10.0f, z * rowSpacing);
-
-			if (rand() % 2) {
-				AddCubeToWorld(position, cubeDims);
-			}
-			else {
-				//AddSphereToWorld(position, sphereRadius);
-			}
-		}
-	}
+	//		if (rand() % 2) {
+	//			AddCubeToWorld(position, cubeDims);
+	//		}
+	//		else {
+	//			AddSphereToWorld(position, sphereRadius);
+	//		}
+	//	}
+	//}
 }
 
 /**

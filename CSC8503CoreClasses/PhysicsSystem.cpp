@@ -247,9 +247,12 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 	}
 
 	Vector3 normal = Vector::Normalise(p.normal);
+	if (Vector::LengthSquared(normal) < 1e-6f) {
+		normal = Vector3(0, 1, 0);
+	}
 
 	// Positional correction
-	const float percent = 0.8f;
+	const float percent = 0.6f; // reduce correction to avoid jitter
 	const float slop = 0.001f;
 	float correctionMag = std::max(p.penetration - slop, 0.0f) / (invMassA + invMassB) * percent;
 	Vector3 correction = normal * correctionMag;
@@ -261,12 +264,12 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 	Vector3 relativeVel = physB->GetLinearVelocity() - physA->GetLinearVelocity();
 	float velAlongNormal = Vector::Dot(relativeVel, normal);
 
-	// If velocities are separating, skip
+	// If velocities are separating, still allow positional fix but skip impulse
 	if (velAlongNormal > 0.0f) {
 		return;
 	}
 
-	float restitution = 0.8f; // default bounce
+	float restitution = 0.4f; // soften bounce to reduce sticking with static bodies
 	float j = -(1.0f + restitution) * velAlongNormal;
 	j /= (invMassA + invMassB);
 
