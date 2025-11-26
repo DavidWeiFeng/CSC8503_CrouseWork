@@ -203,7 +203,25 @@ void PhysicsSystem::UpdateObjectAABBs()
  */
 void PhysicsSystem::BasicCollisionDetection() 
 {
-	// Collision handling will be implemented later; placeholder to keep update loop running.
+	GameObjectIterator first;
+	GameObjectIterator last;
+	gameWorld.GetObjectIterators(first, last);
+
+	for (auto i = first; i != last; ++i) {
+		for (auto j = i + 1; j != last; ++j) {
+			GameObject* a = *i;
+			GameObject* b = *j;
+			if (!a->GetBoundingVolume() || !b->GetBoundingVolume()) {
+				continue;
+			}
+			CollisionDetection::CollisionInfo info;
+			if (CollisionDetection::ObjectIntersection(a, b, info)) {
+				ImpulseResolveCollision(*a, *b, info.point);
+				info.framesLeft = numCollisionFrames;
+				allCollisions.insert(info);
+			}
+		}
+	}
 }
 
 /**
@@ -215,7 +233,46 @@ void PhysicsSystem::BasicCollisionDetection()
  */
 void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, CollisionDetection::ContactPoint& p) const 
 {
+	PhysicsObject* physA = a.GetPhysicsObject();
+	PhysicsObject* physB = b.GetPhysicsObject();
+	if (!physA || !physB) {
+		return;
+	}
 
+	float invMassA = physA->GetInverseMass();
+	float invMassB = physB->GetInverseMass();
+
+	if (invMassA + invMassB == 0.0f) {
+		return; // both static
+	}
+
+	Vector3 normal = Vector::Normalise(p.normal);
+
+	// Positional correction
+	const float percent = 0.8f;
+	const float slop = 0.001f;
+	float correctionMag = std::max(p.penetration - slop, 0.0f) / (invMassA + invMassB) * percent;
+	Vector3 correction = normal * correctionMag;
+	Transform& tA = a.GetTransform();
+	Transform& tB = b.GetTransform();
+	tA.SetPosition(tA.GetPosition() - correction * invMassA);
+	tB.SetPosition(tB.GetPosition() + correction * invMassB);
+
+	Vector3 relativeVel = physB->GetLinearVelocity() - physA->GetLinearVelocity();
+	float velAlongNormal = Vector::Dot(relativeVel, normal);
+
+	// If velocities are separating, skip
+	if (velAlongNormal > 0.0f) {
+		return;
+	}
+
+	float restitution = 0.8f; // default bounce
+	float j = -(1.0f + restitution) * velAlongNormal;
+	j /= (invMassA + invMassB);
+
+	Vector3 impulse = normal * j;
+	physA->SetLinearVelocity(physA->GetLinearVelocity() - impulse * invMassA);
+	physB->SetLinearVelocity(physB->GetLinearVelocity() + impulse * invMassB);
 }
 
 /**
