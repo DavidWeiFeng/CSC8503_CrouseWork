@@ -62,7 +62,7 @@ namespace NCL {
 			bool inSelectionMode;
 
 			float		forceMagnitude;
-			float		playerMoveForce = 80.0f;
+			float		playerMoveForce = 70.0f;
 			float		playerMaxSpeed  = 25.0f;
 			float		playerJumpImpulse = 12.0f;
 			float		groundFriction = 0.9f;

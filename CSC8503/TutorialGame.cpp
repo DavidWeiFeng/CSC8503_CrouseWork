@@ -412,9 +412,9 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
  * @brief 初始化游戏中的一些示例对象，如玩家、敌人和奖励品。
  */
 void TutorialGame::InitGameExamples() {
-	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
-	AddEnemyToWorld(Vector3(5, 5, 0));
-	AddBonusToWorld(Vector3(10, 5, 0));
+	//playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
+	//AddEnemyToWorld(Vector3(5, 5, 0));
+	//AddBonusToWorld(Vector3(10, 5, 0));
 }
 
 /**
@@ -432,7 +432,7 @@ void TutorialGame::CreateSphereGrid(int numRows, int numCols, float rowSpacing, 
 			AddSphereToWorld(position, radius, 1.0f);
 		}
 	}
-	AddFloorToWorld(Vector3(0, -2, 0));
+	AddFloorToWorld(Vector3(0, 0, 0));
 }
 
 /**
@@ -445,7 +445,7 @@ void TutorialGame::CreateSphereGrid(int numRows, int numCols, float rowSpacing, 
 void TutorialGame::CreatedMixedGrid(int numRows, int numCols, float rowSpacing, float colSpacing) {
 	float sphereRadius = 1.0f;
 	Vector3 cubeDims = Vector3(1, 1, 1);
-	AddCubeToWorld(Vector3(10,10,10), cubeDims);
+	AddCubeToWorld(Vector3(20,20,20), cubeDims);
 	AddSphereToWorld(Vector3(9,9,9), sphereRadius);
 	//for (int x = 0; x < numCols; ++x) {
 	//	for (int z = 0; z < numRows; ++z) {

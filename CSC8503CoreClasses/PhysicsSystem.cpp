@@ -236,13 +236,19 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 	PhysicsObject* physA = a.GetPhysicsObject();
 	PhysicsObject* physB = b.GetPhysicsObject();
 	if (!physA || !physB) {
+		std::cout << "!physA || !physB" << std::endl;
 		return;
 	}
-
+	std::cout << "=== Contact Info ===" << std::endl;
+	std::cout << "normal: " << p.normal << std::endl;
+	std::cout << "penetration: " << p.penetration << std::endl;
+	std::cout << "point: " << p.localA << std::endl;
+	std::cout << "point: " << p.localB << std::endl;
 	float invMassA = physA->GetInverseMass();
 	float invMassB = physB->GetInverseMass();
 
 	if (invMassA + invMassB == 0.0f) {
+		std::cout << "both static" << std::endl;
 		return; // both static
 	}
 
@@ -250,12 +256,16 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 	if (Vector::LengthSquared(normal) < 1e-6f) {
 		normal = Vector3(0, 1, 0);
 	}
-
+	Vector3 ab = b.GetTransform().GetPosition() - a.GetTransform().GetPosition();
+	if (Vector::Dot(normal, ab) < 0.0f) {
+		normal = -normal; // 确保法线从 a 指向 b
+	}
 	// Positional correction
 	const float percent = 0.6f; // reduce correction to avoid jitter
 	const float slop = 0.001f;
 	float correctionMag = std::max(p.penetration - slop, 0.0f) / (invMassA + invMassB) * percent;
 	Vector3 correction = normal * correctionMag;
+	std::cout << "!hi" << std::endl;
 	Transform& tA = a.GetTransform();
 	Transform& tB = b.GetTransform();
 	tA.SetPosition(tA.GetPosition() - correction * invMassA);
