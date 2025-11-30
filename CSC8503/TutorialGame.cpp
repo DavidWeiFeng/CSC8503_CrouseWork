@@ -108,7 +108,7 @@ TutorialGame::~TutorialGame()	{
  * @param dt 帧时间增量。
  */
 void TutorialGame::UpdateGame(float dt) {
-	if (!inSelectionMode) {
+	if (!lockedObject && !inSelectionMode) {
 		world.GetMainCamera().UpdateCamera(dt);
 	}
 	if (lockedObject != nullptr) {
@@ -239,6 +239,11 @@ void TutorialGame::InitWorld() {
 	InitGameExamples();
 
 	AddFloorToWorld(Vector3(0, -20, 0));
+	if (playerObject) {
+		lockedObject = playerObject;
+		lockedOffset = Vector3(0, 8, -15); // 类似《人类一败涂地》的俯视后跟视角
+	}
+
 }
 
 /**
