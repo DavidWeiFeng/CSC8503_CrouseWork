@@ -110,6 +110,7 @@ int main() {
 
 		world->UpdateWorld(dt);
 		physics->Update(dt);
+		g->LateUpdate(dt);
 		renderer->Update(dt);	
 		renderer->Render();
 		

@@ -195,8 +195,6 @@ void TutorialGame::UpdateGame(float dt) {
 			o->Update(dt);
 		}
 	);
-
-	UpdateThirdPersonCamera(dt); // 放在物理/物体更新之后，避免相机落后于玩家位置
 }
 
 void TutorialGame::UpdateThirdPersonCamera(float dt) {
@@ -231,6 +229,11 @@ void TutorialGame::UpdateThirdPersonCamera(float dt) {
 	camera.SetPosition(camPos);
 	camera.SetYaw(yaw);
 	camera.SetPitch(pitch);
+}
+
+void TutorialGame::LateUpdate(float dt) {
+	(void)dt;
+	UpdateThirdPersonCamera(0.0f);
 }
 
 /**
