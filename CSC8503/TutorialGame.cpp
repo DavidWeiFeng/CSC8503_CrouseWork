@@ -111,6 +111,8 @@ TutorialGame::~TutorialGame()	{
 void TutorialGame::UpdateGame(float dt) {
 	UpdateThirdPersonCamera(dt);
 
+	float fps = dt > 1e-6f ? 1.0f / dt : 0.0f;
+
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
 		InitWorld(); //We can reset the simulation at any time with F1
 		selectionObject = nullptr;
@@ -178,6 +180,7 @@ void TutorialGame::UpdateGame(float dt) {
 	//This year we can draw debug textures as well!
 	Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
 	Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));
+	Debug::Print("FPS: " + std::to_string(fps), Vector2(5, 80), Debug::YELLOW);
 	if (useGravity) {
 		Debug::Print("(G)ravity on", Vector2(5, 95), Debug::RED);
 	}
