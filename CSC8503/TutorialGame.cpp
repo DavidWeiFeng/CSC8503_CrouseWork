@@ -108,24 +108,19 @@ TutorialGame::~TutorialGame()	{
  * @param dt 帧时间增量。
  */
 void TutorialGame::UpdateGame(float dt) {
-	if (!lockedObject && !inSelectionMode) {
+	if (!inSelectionMode) {
 		world.GetMainCamera().UpdateCamera(dt);
 	}
 	if (lockedObject != nullptr) {
+		Camera& camera = world.GetMainCamera();
 		Vector3 objPos = lockedObject->GetTransform().GetPosition();
-		Vector3 camPos = objPos + lockedOffset; // 偏移量 (0, 14, 20)
-
-		// 构建观察矩阵并反向获取方向
-		Matrix4 temp = Matrix::View(camPos, objPos, Vector3(0,1,0));
-
-		Matrix4 modelMat = Matrix::Inverse(temp);
-
-		Quaternion q(modelMat);
-		Vector3 angles = q.ToEuler(); //nearly there now!
-
-		world.GetMainCamera().SetPosition(camPos);
-		world.GetMainCamera().SetPitch(angles.x);
-		world.GetMainCamera().SetYaw(angles.y);
+		// rotate local offset by current yaw / pitch so the boom stays behind the player
+		Matrix3 pitchRotation = Matrix::RotationMatrix3x3(camera.GetPitch(), Vector3(1, 0, 0));
+		Matrix3 yawRotation = Matrix::RotationMatrix3x3(camera.GetYaw(), Vector3(0, 1, 0));
+		Matrix3 orientation = yawRotation * pitchRotation;
+		Vector3 rotatedOffset = orientation * lockedOffset;
+		Vector3 camPos = objPos - rotatedOffset;
+		camera.SetPosition(camPos);
 	}
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
@@ -529,8 +524,14 @@ bool TutorialGame::SelectObject() {
 				}
 				else {
 					lockedObject = selectionObject;
-					// 捕获当前相机与目标的相对偏移并退出选择模式，便于跟随
-					lockedOffset = world.GetMainCamera().GetPosition() - lockedObject->GetTransform().GetPosition();
+					// 将当前世界偏移转换到相机局部空间，后续可根据鼠标旋转重新计算位置
+					Camera& camera = world.GetMainCamera();
+					Vector3 worldOffset = camera.GetPosition() - lockedObject->GetTransform().GetPosition();
+					Matrix3 pitchRotation = Matrix::RotationMatrix3x3(camera.GetPitch(), Vector3(1, 0, 0));
+					Matrix3 yawRotation = Matrix::RotationMatrix3x3(camera.GetYaw(), Vector3(0, 1, 0));
+					Matrix3 orientation = yawRotation * pitchRotation;
+					Matrix3 orientationInv = Matrix::Transpose(orientation);
+					lockedOffset = orientationInv * worldOffset;
 					inSelectionMode = false;
 					Window::GetWindow()->ShowOSPointer(false);
 					Window::GetWindow()->LockMouseToWindow(true);

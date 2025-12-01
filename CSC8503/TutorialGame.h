@@ -91,7 +91,7 @@ namespace NCL {
 
 			//Coursework Additional functionality	
 			GameObject* lockedObject = nullptr;
-			NCL::Maths::Vector3 lockedOffset = NCL::Maths::Vector3(0, 14, 20);
+			NCL::Maths::Vector3 lockedOffset = NCL::Maths::Vector3(0, 30, -15);
 			void LockCameraToObject(GameObject* o) {
 				lockedObject = o;
 			}
