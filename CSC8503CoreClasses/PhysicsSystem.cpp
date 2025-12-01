@@ -239,6 +239,11 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 		std::cout << "!physA || !physB" << std::endl;
 		return;
 	}
+	std::cout << "=== Contact Info ===" << std::endl;
+	std::cout << "normal: " << p.normal << std::endl;
+	std::cout << "penetration: " << p.penetration << std::endl;
+	std::cout << "point: " << p.localA << std::endl;
+	std::cout << "point: " << p.localB << std::endl;
 	float invMassA = physA->GetInverseMass();
 	float invMassB = physB->GetInverseMass();
 

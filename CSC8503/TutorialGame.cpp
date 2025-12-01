@@ -112,15 +112,20 @@ void TutorialGame::UpdateGame(float dt) {
 		world.GetMainCamera().UpdateCamera(dt);
 	}
 	if (lockedObject != nullptr) {
-		Camera& camera = world.GetMainCamera();
 		Vector3 objPos = lockedObject->GetTransform().GetPosition();
-		// rotate local offset by current yaw / pitch so the boom stays behind the player
-		Matrix3 pitchRotation = Matrix::RotationMatrix3x3(camera.GetPitch(), Vector3(1, 0, 0));
-		Matrix3 yawRotation = Matrix::RotationMatrix3x3(camera.GetYaw(), Vector3(0, 1, 0));
-		Matrix3 orientation = yawRotation * pitchRotation;
-		Vector3 rotatedOffset = orientation * lockedOffset;
-		Vector3 camPos = objPos - rotatedOffset;
-		camera.SetPosition(camPos);
+		Vector3 camPos = objPos + lockedOffset; // 偏移量 (0, 14, 20)
+
+		// 构建观察矩阵并反向获取方向
+		Matrix4 temp = Matrix::View(camPos, objPos, Vector3(0,1,0));
+
+		Matrix4 modelMat = Matrix::Inverse(temp);
+
+		Quaternion q(modelMat);
+		Vector3 angles = q.ToEuler(); //nearly there now!
+
+		world.GetMainCamera().SetPosition(camPos);
+		world.GetMainCamera().SetPitch(angles.x);
+		world.GetMainCamera().SetYaw(angles.y);
 	}
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
@@ -234,11 +239,6 @@ void TutorialGame::InitWorld() {
 	InitGameExamples();
 
 	AddFloorToWorld(Vector3(0, -20, 0));
-	if (playerObject) {
-		lockedObject = playerObject;
-		lockedOffset = Vector3(0, 8, -15); // 类似《人类一败涂地》的俯视后跟视角
-	}
-
 }
 
 /**
@@ -412,9 +412,9 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
  * @brief 初始化游戏中的一些示例对象，如玩家、敌人和奖励品。
  */
 void TutorialGame::InitGameExamples() {
-	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
-	AddEnemyToWorld(Vector3(5, 5, 0));
-	AddBonusToWorld(Vector3(10, 5, 0));
+	//playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
+	//AddEnemyToWorld(Vector3(5, 5, 0));
+	//AddBonusToWorld(Vector3(10, 5, 0));
 }
 
 /**
@@ -445,8 +445,8 @@ void TutorialGame::CreateSphereGrid(int numRows, int numCols, float rowSpacing, 
 void TutorialGame::CreatedMixedGrid(int numRows, int numCols, float rowSpacing, float colSpacing) {
 	float sphereRadius = 1.0f;
 	Vector3 cubeDims = Vector3(1, 1, 1);
-	AddCubeToWorld(Vector3(20, 20, 20), cubeDims);
-	AddSphereToWorld(Vector3(9, 9, 9), sphereRadius);
+	AddCubeToWorld(Vector3(20,20,20), cubeDims);
+	AddSphereToWorld(Vector3(9,9,9), sphereRadius);
 	//for (int x = 0; x < numCols; ++x) {
 	//	for (int z = 0; z < numRows; ++z) {
 	//		Vector3 position = Vector3(x * colSpacing, 10.0f, z * rowSpacing);
@@ -524,17 +524,6 @@ bool TutorialGame::SelectObject() {
 				}
 				else {
 					lockedObject = selectionObject;
-					// 将当前世界偏移转换到相机局部空间，后续可根据鼠标旋转重新计算位置
-					Camera& camera = world.GetMainCamera();
-					Vector3 worldOffset = camera.GetPosition() - lockedObject->GetTransform().GetPosition();
-					Matrix3 pitchRotation = Matrix::RotationMatrix3x3(camera.GetPitch(), Vector3(1, 0, 0));
-					Matrix3 yawRotation = Matrix::RotationMatrix3x3(camera.GetYaw(), Vector3(0, 1, 0));
-					Matrix3 orientation = yawRotation * pitchRotation;
-					Matrix3 orientationInv = Matrix::Transpose(orientation);
-					lockedOffset = orientationInv * worldOffset;
-					inSelectionMode = false;
-					Window::GetWindow()->ShowOSPointer(false);
-					Window::GetWindow()->LockMouseToWindow(true);
 				}
 			}
 		}
