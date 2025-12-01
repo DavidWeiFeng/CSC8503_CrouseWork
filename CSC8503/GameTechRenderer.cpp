@@ -144,6 +144,7 @@ Texture* GameTechRenderer::LoadTexture(const std::string& name) {
 void GameTechRenderer::RenderFrame() {
 	glEnable(GL_CULL_FACE);
 	glClearColor(1, 1, 1, 1);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	BuildObjectLists();
 	
 	{

@@ -109,8 +109,6 @@ TutorialGame::~TutorialGame()	{
  * @param dt 帧时间增量。
  */
 void TutorialGame::UpdateGame(float dt) {
-	UpdateThirdPersonCamera(dt);
-
 	float fps = dt > 1e-6f ? 1.0f / dt : 0.0f;
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
@@ -178,8 +176,8 @@ void TutorialGame::UpdateGame(float dt) {
 	}
 
 	//This year we can draw debug textures as well!
-	Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
-	Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));
+	//Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
+	//Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));
 	Debug::Print("FPS: " + std::to_string(fps), Vector2(5, 80), Debug::YELLOW);
 	if (useGravity) {
 		Debug::Print("(G)ravity on", Vector2(5, 95), Debug::RED);
@@ -197,6 +195,8 @@ void TutorialGame::UpdateGame(float dt) {
 			o->Update(dt);
 		}
 	);
+
+	UpdateThirdPersonCamera(dt); // 放在物理/物体更新之后，避免相机落后于玩家位置
 }
 
 void TutorialGame::UpdateThirdPersonCamera(float dt) {

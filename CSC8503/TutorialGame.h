@@ -20,6 +20,7 @@ namespace NCL {
 			~TutorialGame();
 
 			virtual void UpdateGame(float dt);
+			void LateUpdate(float dt);
 
 		protected:
 			void InitCamera();
