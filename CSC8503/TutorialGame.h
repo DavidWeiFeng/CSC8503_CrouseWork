@@ -41,6 +41,7 @@ namespace NCL {
 			void MoveSelectedObject();
 			void DebugObjectMovement();
 			void LockedObjectMovement();
+			void UpdateThirdPersonCamera(float dt);
 			void HandlePlayerMovement(float dt);
 			bool IsPlayerGrounded() const;
 
@@ -62,12 +63,15 @@ namespace NCL {
 			bool inSelectionMode;
 
 			float		forceMagnitude;
-			float		playerMoveForce = 70.0f;
-			float		playerMaxSpeed  = 25.0f;
+			float		playerMoveForce = 80.0f;
+			float		playerMaxSpeed  = 30.0f;
 			float		playerJumpImpulse = 12.0f;
 			float		groundFriction = 0.9f;
 			float		airFriction    = 0.99f;
 			float		playerRadius   = 1.0f;
+			float		cameraFollowDistance = 12.0f;
+			float		cameraFollowHeight   = 3.0f;
+			float		cameraLookSensitivity = 0.35f;
 
 			GameObject* selectionObject = nullptr;
 

@@ -21,6 +21,7 @@
 #include "GameTechRendererInterface.h"
 
 #include "Ray.h"
+#include <algorithm>
 
 using namespace NCL;
 using namespace CSC8503;
@@ -108,25 +109,7 @@ TutorialGame::~TutorialGame()	{
  * @param dt 帧时间增量。
  */
 void TutorialGame::UpdateGame(float dt) {
-	if (!inSelectionMode) {
-		world.GetMainCamera().UpdateCamera(dt);
-	}
-	if (lockedObject != nullptr) {
-		Vector3 objPos = lockedObject->GetTransform().GetPosition();
-		Vector3 camPos = objPos + lockedOffset; // 偏移量 (0, 14, 20)
-
-		// 构建观察矩阵并反向获取方向
-		Matrix4 temp = Matrix::View(camPos, objPos, Vector3(0,1,0));
-
-		Matrix4 modelMat = Matrix::Inverse(temp);
-
-		Quaternion q(modelMat);
-		Vector3 angles = q.ToEuler(); //nearly there now!
-
-		world.GetMainCamera().SetPosition(camPos);
-		world.GetMainCamera().SetPitch(angles.x);
-		world.GetMainCamera().SetYaw(angles.y);
-	}
+	UpdateThirdPersonCamera(dt);
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
 		InitWorld(); //We can reset the simulation at any time with F1
@@ -211,6 +194,40 @@ void TutorialGame::UpdateGame(float dt) {
 			o->Update(dt);
 		}
 	);
+}
+
+void TutorialGame::UpdateThirdPersonCamera(float dt) {
+	if (!playerObject) {
+		return;
+	}
+
+	(void)dt;
+
+	Camera& camera = world.GetMainCamera();
+
+	float yaw = camera.GetYaw();
+	float pitch = camera.GetPitch();
+
+	if (controller) {
+		yaw   -= controller->GetNamedAxis("XLook") * cameraLookSensitivity;
+		pitch -= controller->GetNamedAxis("YLook") * cameraLookSensitivity;
+	}
+
+	pitch = std::clamp(pitch, -80.0f, 80.0f);
+
+	Matrix3 yawRotation = Matrix::RotationMatrix3x3(yaw, Vector3(0, 1, 0));
+	Matrix3 pitchRotation = Matrix::RotationMatrix3x3(pitch, Vector3(1, 0, 0));
+	Matrix3 orientation = yawRotation * pitchRotation;
+
+	Vector3 forward = orientation * Vector3(0, 0, -1);
+	forward = Vector::Normalise(forward);
+
+	Vector3 targetPos = playerObject->GetTransform().GetPosition();
+	Vector3 camPos = targetPos + Vector3(0, cameraFollowHeight, 0) - forward * cameraFollowDistance;
+
+	camera.SetPosition(camPos);
+	camera.SetYaw(yaw);
+	camera.SetPitch(pitch);
 }
 
 /**
@@ -412,9 +429,9 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
  * @brief 初始化游戏中的一些示例对象，如玩家、敌人和奖励品。
  */
 void TutorialGame::InitGameExamples() {
-	//playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
-	//AddEnemyToWorld(Vector3(5, 5, 0));
-	//AddBonusToWorld(Vector3(10, 5, 0));
+	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
+	AddEnemyToWorld(Vector3(5, 5, 0));
+	AddBonusToWorld(Vector3(10, 5, 0));
 }
 
 /**
