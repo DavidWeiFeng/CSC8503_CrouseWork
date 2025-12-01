@@ -709,7 +709,9 @@ void TutorialGame::HandlePlayerMovement(float dt) {
 	Vector3 horizVel = Vector3(velocity.x, 0.0f, velocity.z);
 	if (Vector::LengthSquared(horizVel) > 0.0f) {
 		float friction = grounded ? groundFriction : airFriction;
-		horizVel *= friction;
+		// Treat friction as per-second damping; raise to dt to make it framerate-independent
+		float frictionFactor = std::pow(friction, dt);
+		horizVel *= frictionFactor;
 		velocity.x = horizVel.x;
 		velocity.z = horizVel.z;
 	}

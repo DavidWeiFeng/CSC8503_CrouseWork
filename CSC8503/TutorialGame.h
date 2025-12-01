@@ -64,11 +64,11 @@ namespace NCL {
 			bool inSelectionMode;
 
 			float		forceMagnitude;
-			float		playerMoveForce = 80.0f;
-			float		playerMaxSpeed  = 30.0f;
-			float		playerJumpImpulse = 12.0f;
-			float		groundFriction = 0.9f;
-			float		airFriction    = 0.99f;
+			float		playerMoveForce = 30.0f;
+			float		playerMaxSpeed  = 10.0f;
+			float		playerJumpImpulse = 11.0f;
+			float		groundFriction = 0.93f; // treated as per-second damping base
+			float		airFriction    = 0.99f; // treated as per-second damping base
 			float		playerRadius   = 1.0f;
 			float		cameraFollowDistance = 12.0f;
 			float		cameraFollowHeight   = 3.0f;

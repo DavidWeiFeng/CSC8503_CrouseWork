@@ -239,11 +239,6 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 		std::cout << "!physA || !physB" << std::endl;
 		return;
 	}
-	std::cout << "=== Contact Info ===" << std::endl;
-	std::cout << "normal: " << p.normal << std::endl;
-	std::cout << "penetration: " << p.penetration << std::endl;
-	std::cout << "point: " << p.localA << std::endl;
-	std::cout << "point: " << p.localB << std::endl;
 	float invMassA = physA->GetInverseMass();
 	float invMassB = physB->GetInverseMass();
 
@@ -265,7 +260,6 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 	const float slop = 0.001f;
 	float correctionMag = std::max(p.penetration - slop, 0.0f) / (invMassA + invMassB) * percent;
 	Vector3 correction = normal * correctionMag;
-	std::cout << "!hi" << std::endl;
 	Transform& tA = a.GetTransform();
 	Transform& tB = b.GetTransform();
 	tA.SetPosition(tA.GetPosition() - correction * invMassA);
