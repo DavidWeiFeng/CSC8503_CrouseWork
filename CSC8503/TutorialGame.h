@@ -102,6 +102,7 @@ namespace NCL {
 			}
 
 			GameObject* objClosest = nullptr;
+			GameObject* forwardHitObject = nullptr;
 		};
 	}
 }

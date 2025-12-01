@@ -189,7 +189,32 @@ void TutorialGame::UpdateGame(float dt) {
 	SelectObject(); // 处理对象选择
 	MoveSelectedObject();	 // 移动选定的对象
 	HandlePlayerMovement(dt); // 处理玩家输入移动
-	
+	// 右键从玩家正前方发射射线，高亮命中的物体
+	if (Window::GetMouse()->ButtonPressed(NCL::MouseButtons::Right) && playerObject) {
+		Vector3 origin = playerObject->GetTransform().GetPosition();
+		Vector3 forward = playerObject->GetTransform().GetOrientation() * Vector3(0, 0, 1);
+		if (Vector::LengthSquared(forward) < 1e-4f) {
+			forward = Vector3(0, 0, -1);
+		}
+		forward = Vector::Normalise(forward);
+		Ray ray(origin, forward);
+
+		// 可视化射线，长度 100
+		Debug::DrawLine(origin, origin + forward * 100.0f, Vector4(1, 0, 0, 1));
+
+		RayCollision hit;
+		if (world.Raycast(ray, hit, true, playerObject)) {
+			if (forwardHitObject && forwardHitObject != hit.node) {
+				forwardHitObject->GetRenderObject()->SetColour(Vector4(1, 1, 1, 1));
+			}
+			forwardHitObject = (GameObject*)hit.node;
+			forwardHitObject->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));
+		}
+		else if (forwardHitObject) {
+			forwardHitObject->GetRenderObject()->SetColour(Vector4(1, 1, 1, 1));
+			forwardHitObject = nullptr;
+		}
+	}	
 	world.OperateOnContents(
 		[dt](GameObject* o) {
 			o->Update(dt);
@@ -201,7 +226,6 @@ void TutorialGame::UpdateThirdPersonCamera(float dt) {
 	if (!playerObject) {
 		return;
 	}
-
 	(void)dt;
 
 	Camera& camera = world.GetMainCamera();
