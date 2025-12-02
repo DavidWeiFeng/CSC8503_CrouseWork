@@ -77,7 +77,7 @@ namespace NCL {
 			float		cameraLookSensitivity = 0.35f;
 			float		grabMaxDistance = 10.0f;
 			float		grabDamping     = 5.0f;
-			float		grabSpring      = 80.0f;   // stiffness
+			float		grabSpring      = 20.0f;   // stiffness
 			float		grabMaxForce    = 500.0f;  // clamp to avoid explosion
 			float		grabMaxLinearSpeed  = 20.0f;
 			float		grabMaxAngularSpeed = 5.0f;

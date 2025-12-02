@@ -209,6 +209,9 @@ void TutorialGame::UpdateGame(float dt) {
 			RayCollision hit;
 			Debug::DrawLine(origin, origin + forward * 100.0f, Vector4(1, 0, 0, 1));
 			if (world.Raycast(ray, hit, true, playerObject)) {
+				if (hit.rayDistance > grabMaxDistance) {
+					return; // 超出距离，不让抓
+				}
 				GameObject* hitObj = (GameObject*)hit.node;
 				PhysicsObject* phys = hitObj ? hitObj->GetPhysicsObject() : nullptr;
 				if (phys && phys->GetInverseMass() > 0.0f) {
@@ -216,7 +219,9 @@ void TutorialGame::UpdateGame(float dt) {
 					Quaternion invOrient = grabbedObject->GetTransform().GetOrientation().Conjugate();
 					Vector3 local = hit.collidedAt - grabbedObject->GetTransform().GetPosition();
 					grabLocalOffset = invOrient * local;
-					grabDistance = std::min(hit.rayDistance, grabMaxDistance);
+					float desiredGrabDistance = 1.0f;
+					grabDistance = desiredGrabDistance;
+					//grabDistance = std::min(hit.rayDistance, grabMaxDistance);
 					if (grabbedObject->GetRenderObject()) {
 						grabbedObject->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));
 					}
@@ -242,7 +247,6 @@ void TutorialGame::UpdateGame(float dt) {
 			PhysicsObject* phys = grabbedObject->GetPhysicsObject();
 			if (phys) {
 				Vector3 force = error * grabSpring - phys->GetLinearVelocity() * grabDamping;
-				std::cout << "Applying grab force: " << phys->GetLinearVelocity() * grabDamping << "\n";
 				phys->AddForceAtPosition(force, worldAnchor);
 			}
 
