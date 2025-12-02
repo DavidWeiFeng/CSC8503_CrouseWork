@@ -1,5 +1,6 @@
 #pragma once
 #include "RenderObject.h"
+#include "PositionConstraint.h"
 namespace NCL {
 	class Controller;
 
@@ -13,6 +14,7 @@ namespace NCL {
 		class PhysicsSystem;
 		class GameWorld;
 		class GameObject;
+		class PositionConstraint;
 
 		class TutorialGame {
 		public:
@@ -73,6 +75,9 @@ namespace NCL {
 			float		cameraFollowDistance = 12.0f;
 			float		cameraFollowHeight   = 3.0f;
 			float		cameraLookSensitivity = 0.35f;
+			float		grabMaxDistance = 15.0f;
+			float		grabSpring      = 800.0f;
+			float		grabDamping     = 60.0f;
 
 			GameObject* selectionObject = nullptr;
 
@@ -103,6 +108,10 @@ namespace NCL {
 
 			GameObject* objClosest = nullptr;
 			GameObject* forwardHitObject = nullptr;
+			GameObject* grabbedObject = nullptr;
+			PositionConstraint* grabConstraint = nullptr;
+			NCL::Maths::Vector3 grabLocalOffset = NCL::Maths::Vector3();
+			float grabDistance = 0.0f;
 		};
 	}
 }
