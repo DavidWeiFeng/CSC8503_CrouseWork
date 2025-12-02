@@ -9,6 +9,8 @@
 #include "Debug.h"
 #include "Window.h"
 #include <functional>
+#include <algorithm>
+#include <cmath>
 using namespace NCL;
 using namespace CSC8503;
 using namespace NCL::Maths;
@@ -20,7 +22,7 @@ using namespace NCL::Maths;
 PhysicsSystem::PhysicsSystem(GameWorld& g) : gameWorld(g)	
 {
 	applyGravity	= false;
-	useBroadPhase	= false;	
+	useBroadPhase	= true;	
 	dTOffset		= 0.0f;
 	globalDamping	= 	0.995f;
 	SetGravity(Vector3(0.0f, -9.8f, 0.0f));
@@ -288,7 +290,55 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
  */
 void PhysicsSystem::BroadPhase() 
 {
+	struct BroadEntry {
+		GameObject* object;
+		Vector3     pos;
+		Vector3     halfSize;
+		float       minX;
+		float       maxX;
+	};
 
+	std::vector<BroadEntry> entries;
+	entries.reserve(128);
+
+	GameObjectIterator first;
+	GameObjectIterator last;
+	gameWorld.GetObjectIterators(first, last);
+
+	for (auto i = first; i != last; ++i) {
+		GameObject* g = *i;
+		Vector3 halfSizes;
+		if (!g->GetBroadphaseAABB(halfSizes)) {
+			continue;
+		}
+		Vector3 pos = g->GetTransform().GetPosition();
+		entries.push_back({ g, pos, halfSizes, pos.x - halfSizes.x, pos.x + halfSizes.x });
+	}
+
+	std::sort(entries.begin(), entries.end(), [](const BroadEntry& a, const BroadEntry& b) {
+		return a.minX < b.minX;
+	});
+
+	broadphaseCollisionsVec.clear();
+
+	for (size_t i = 0; i < entries.size(); ++i) {
+		const BroadEntry& a = entries[i];
+		for (size_t j = i + 1; j < entries.size(); ++j) {
+			const BroadEntry& b = entries[j];
+			if (b.minX > a.maxX) {
+				break; // no more overlaps on X
+			}
+			// test Y/Z overlap
+			bool overlapY = std::abs(a.pos.y - b.pos.y) <= (a.halfSize.y + b.halfSize.y);
+			bool overlapZ = std::abs(a.pos.z - b.pos.z) <= (a.halfSize.z + b.halfSize.z);
+			if (overlapY && overlapZ) {
+				CollisionDetection::CollisionInfo info;
+				info.a = a.object;
+				info.b = b.object;
+				broadphaseCollisionsVec.emplace_back(info);
+			}
+		}
+	}
 }
 
 /**
@@ -297,7 +347,19 @@ void PhysicsSystem::BroadPhase()
  */
 void PhysicsSystem::NarrowPhase() 
 {
-
+	for (auto& info : broadphaseCollisionsVec) {
+		GameObject* a = info.a;
+		GameObject* b = info.b;
+		if (!a->GetBoundingVolume() || !b->GetBoundingVolume()) {
+			continue;
+		}
+		CollisionDetection::CollisionInfo collision;
+		if (CollisionDetection::ObjectIntersection(a, b, collision)) {
+			ImpulseResolveCollision(*a, *b, collision.point);
+			collision.framesLeft = numCollisionFrames;
+			allCollisions.insert(collision);
+		}
+	}
 }
 
 /**

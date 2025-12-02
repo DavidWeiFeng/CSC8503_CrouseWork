@@ -40,7 +40,7 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 {
 
 	forceMagnitude	= 10.0f;
-	useGravity		= false;
+	useGravity		= true;
 	inSelectionMode = false;
 
 	controller = new KeyboardMouseController(*Window::GetWindow()->GetKeyboard(), *Window::GetWindow()->GetMouse());
@@ -152,30 +152,6 @@ void TutorialGame::UpdateGame(float dt) {
 	else {
 		DebugObjectMovement();  // 调试模式的对象操作
 	}
-
-	RayCollision closestCollision;
-	if (Window::GetKeyboard()->KeyPressed(KeyCodes::K) && selectionObject) {
-		Vector3 rayPos;
-		Vector3 rayDir;
-		// 从选定对象的位置和朝向发射射线
-		rayDir = selectionObject->GetTransform().GetOrientation() * Vector3(0, 0, -1);
-
-		rayPos = selectionObject->GetTransform().GetPosition();
-
-		Ray r = Ray(rayPos, rayDir);
-
-		if (world.Raycast(r, closestCollision, true, selectionObject)) {
-			// 恢复上一个高亮对象的颜色
-			if (objClosest) {
-				objClosest->GetRenderObject()->SetColour(Vector4(1, 1, 1, 1));
-			}
-			// 高亮新的被射线击中的对象
-			objClosest = (GameObject*)closestCollision.node;
-
-			objClosest->GetRenderObject()->SetColour(Vector4(1, 0, 1, 1));
-		}
-	}
-
 	//This year we can draw debug textures as well!
 	//Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
 	//Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));
