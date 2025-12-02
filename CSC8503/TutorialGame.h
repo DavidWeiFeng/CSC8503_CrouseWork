@@ -75,9 +75,13 @@ namespace NCL {
 			float		cameraFollowDistance = 12.0f;
 			float		cameraFollowHeight   = 3.0f;
 			float		cameraLookSensitivity = 0.35f;
-			float		grabMaxDistance = 15.0f;
-			float		grabSpring      = 800.0f;
-			float		grabDamping     = 60.0f;
+			float		grabMaxDistance = 10.0f;
+			float		grabDamping     = 5.0f;
+			float		grabSpring      = 80.0f;   // stiffness
+			float		grabMaxForce    = 500.0f;  // clamp to avoid explosion
+			float		grabMaxLinearSpeed  = 20.0f;
+			float		grabMaxAngularSpeed = 5.0f;
+			
 
 			GameObject* selectionObject = nullptr;
 

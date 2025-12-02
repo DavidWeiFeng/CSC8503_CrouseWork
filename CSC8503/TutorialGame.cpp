@@ -242,6 +242,7 @@ void TutorialGame::UpdateGame(float dt) {
 			PhysicsObject* phys = grabbedObject->GetPhysicsObject();
 			if (phys) {
 				Vector3 force = error * grabSpring - phys->GetLinearVelocity() * grabDamping;
+				std::cout << "Applying grab force: " << phys->GetLinearVelocity() * grabDamping << "\n";
 				phys->AddForceAtPosition(force, worldAnchor);
 			}
 
