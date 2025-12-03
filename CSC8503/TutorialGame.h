@@ -46,6 +46,7 @@ namespace NCL {
 			void LockedObjectMovement();
 			void UpdateThirdPersonCamera(float dt);
 			void HandlePlayerMovement(float dt);
+			void HandleGrab();
 			bool IsPlayerGrounded() const;
 
 			GameObject* AddFloorToWorld(const NCL::Maths::Vector3& position);
