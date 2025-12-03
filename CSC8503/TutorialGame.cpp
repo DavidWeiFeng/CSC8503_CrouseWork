@@ -21,6 +21,8 @@
 #include "GameTechRendererInterface.h"
 
 #include "Ray.h"
+#include "OBBVolume.h"
+#include "Quaternion.h"
 #include <algorithm>
 
 using namespace NCL;
@@ -223,8 +225,7 @@ void TutorialGame::InitWorld() {
 	selectionObject = nullptr;
 	physics.UseGravity(true);
 	InitGameExamples();
-
-	AddFloorToWorld(Vector3(0, 0, 0));
+	BuildSlopeScene();
 }
 
 /**
@@ -298,6 +299,31 @@ GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimens
 
 	cube->GetTransform()
 		.SetPosition(position)
+		.SetScale(dimensions * 2.0f);
+
+	cube->SetRenderObject(new RenderObject(cube->GetTransform(), cubeMesh, checkerMaterial));
+	cube->SetPhysicsObject(new PhysicsObject(cube->GetTransform(), cube->GetBoundingVolume()));
+
+	cube->GetPhysicsObject()->SetInverseMass(inverseMass);
+	cube->GetPhysicsObject()->InitCubeInertia();
+
+	world.AddGameObject(cube);
+
+	return cube;
+}
+
+/**
+ * @brief 构建一个使用 OBB 体积的立方体，可带旋转。
+ */
+GameObject* TutorialGame::AddOBBCubeToWorld(const Vector3& position, Vector3 dimensions, const Quaternion& orientation, float inverseMass) {
+	GameObject* cube = new GameObject();
+
+	OBBVolume* volume = new OBBVolume(dimensions);
+	cube->SetBoundingVolume(volume);
+
+	cube->GetTransform()
+		.SetPosition(position)
+		.SetOrientation(orientation)
 		.SetScale(dimensions * 2.0f);
 
 	cube->SetRenderObject(new RenderObject(cube->GetTransform(), cubeMesh, checkerMaterial));
@@ -398,7 +424,7 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
  * @brief 初始化游戏中的一些示例对象，如玩家、敌人和奖励品。
  */
 void TutorialGame::InitGameExamples() {
-	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
+	/*playerObject = AddPlayerToWorld(Vector3(0, 5, 0));*/
 	AddCubeToWorld(Vector3(0, 5, 10),Vector3(1,1,1),1.0);
 }
 
@@ -461,6 +487,26 @@ void TutorialGame::CreateAABBGrid(int numRows, int numCols, float rowSpacing, fl
 			AddCubeToWorld(position, cubeDims, 1.0f);
 		}
 	}
+}
+
+/**
+ * @brief 构建场景骨架：高台出生 + 连接地面的斜坡 + 地面。
+ */
+void TutorialGame::BuildSlopeScene() {
+	// 地面
+	
+	AddCubeToWorld(Vector3(0, -2.0f, 0), Vector3(100, 2, 100), 0.0f);
+
+	// 高台
+	Vector3 platformPos = Vector3(0, 10.0f, 20.0f);
+	AddCubeToWorld(platformPos, Vector3(5, 1, 5), 0.0f);
+	playerObject = AddPlayerToWorld(Vector3(0, 20.0f, 20));
+	// 斜坡：从高台朝 -Z 方向下滑到地面
+	//NCL::Maths::Quaternion slopeRot = Quaternion::EulerAnglesToQuaternion(-20.0f, 0.0f, 0.0f);
+	//AddOBBCubeToWorld(Vector3(0, 6.0f, 8.0f), Vector3(4, 1, 12), slopeRot, 0.0f);
+
+	//// 玩家出生在高台上方，避免穿透
+	//playerObject = AddPlayerToWorld(platformPos + Vector3(0, 3.0f, 0));
 }
 
 /**
