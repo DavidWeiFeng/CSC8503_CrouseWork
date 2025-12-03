@@ -120,11 +120,6 @@ void TutorialGame::UpdateGame(float dt) {
 		InitCamera(); //F2 will reset the camera to a specific default place
 	}
 
-	if (Window::GetKeyboard()->KeyPressed(KeyCodes::G)) {
-		useGravity = !useGravity; //Toggle gravity!
-		physics.UseGravity(useGravity);
-	}
-
 	//Running certain physics updates in a consistent order might cause some
 	//bias in the calculations - the same objects might keep 'winning' the constraint
 	//allowing the other one to stretch too much etc. Shuffling the order so that it
@@ -156,12 +151,6 @@ void TutorialGame::UpdateGame(float dt) {
 	//Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
 	//Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));
 	Debug::Print("FPS: " + std::to_string(fps), Vector2(5, 80), Debug::YELLOW);
-	if (useGravity) {
-		Debug::Print("(G)ravity on", Vector2(5, 95), Debug::RED);
-	}
-	else {
-		Debug::Print("(G)ravity off", Vector2(5, 95), Debug::RED);
-	}
 	// 右键抓取：从玩家正前方射线命中可移动物体，保持在玩家前方
 	auto releaseGrab = [&]() {
 		if (grabbedObject) {
@@ -235,31 +224,6 @@ void TutorialGame::UpdateGame(float dt) {
 	MoveSelectedObject();	 // 移动选定的对象
 	HandlePlayerMovement(dt); // 处理玩家输入移动
 	// 右键从玩家正前方发射射线，高亮命中的物体
-	if (Window::GetMouse()->ButtonPressed(NCL::MouseButtons::Left) && playerObject) {
-		Vector3 origin = playerObject->GetTransform().GetPosition();
-		Vector3 forward = playerObject->GetTransform().GetOrientation() * Vector3(0, 0, 1);
-		if (Vector::LengthSquared(forward) < 1e-4f) {
-			forward = Vector3(0, 0, -1);
-		}
-		forward = Vector::Normalise(forward);
-		Ray ray(origin, forward);
-
-		// 可视化射线，长度 100
-		Debug::DrawLine(origin, origin + forward * 100.0f, Vector4(1, 0, 0, 1));
-
-		RayCollision hit;
-		if (world.Raycast(ray, hit, true, playerObject)) {
-			if (forwardHitObject && forwardHitObject != hit.node) {
-				forwardHitObject->GetRenderObject()->SetColour(Vector4(1, 1, 1, 1));
-			}
-			forwardHitObject = (GameObject*)hit.node;
-			forwardHitObject->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));
-		}
-		else if (forwardHitObject) {
-			forwardHitObject->GetRenderObject()->SetColour(Vector4(1, 1, 1, 1));
-			forwardHitObject = nullptr;
-		}
-	}	
 	world.OperateOnContents(
 		[dt](GameObject* o) {
 			o->Update(dt);
@@ -325,12 +289,10 @@ void TutorialGame::InitWorld() {
 	physics.Clear();
 	playerObject = nullptr;
 	selectionObject = nullptr;
-
-	CreatedMixedGrid(15, 15, 3.5f, 3.5f);
-
+	physics.UseGravity(true);
 	InitGameExamples();
 
-	AddFloorToWorld(Vector3(0, -20, 0));
+	AddFloorToWorld(Vector3(0, 0, 0));
 }
 
 /**
@@ -505,8 +467,8 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
  */
 void TutorialGame::InitGameExamples() {
 	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
-	AddEnemyToWorld(Vector3(5, 5, 0));
-	AddBonusToWorld(Vector3(10, 5, 0));
+	//AddEnemyToWorld(Vector3(5, 5, 0));
+	//AddBonusToWorld(Vector3(10, 5, 0));
 }
 
 /**
