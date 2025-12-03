@@ -399,8 +399,7 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
  */
 void TutorialGame::InitGameExamples() {
 	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
-	//AddEnemyToWorld(Vector3(5, 5, 0));
-	//AddBonusToWorld(Vector3(10, 5, 0));
+	AddCubeToWorld(Vector3(0, 5, 10),Vector3(1,1,1),1.0);
 }
 
 /**
