@@ -89,13 +89,16 @@ namespace NCL {
 			// Puzzle objects
 			GameObject* pushableCube = nullptr;
 			GameObject* pressurePlate = nullptr;
-			GameObject* gateObject = nullptr;
+			GameObject* gateLeftObject  = nullptr;
+			GameObject* gateRightObject = nullptr;
 			bool gateOpen = false;
 			float gateAnimT = 0.0f;
-			float gateOpenHeight = 8.0f;
-			NCL::Maths::Vector3 gateClosedPos = NCL::Maths::Vector3();
-			NCL::Maths::Vector3 gateOpenPos   = NCL::Maths::Vector3();
-			NCL::Maths::Vector3 pushCubeHalfSize = NCL::Maths::Vector3(1.0f, 1.0f, 1.0f);
+			float gateSlideDistance = 6.0f;
+			NCL::Maths::Vector3 gateLeftClosedPos  = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 gateRightClosedPos = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 gateLeftOpenPos    = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 gateRightOpenPos   = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 pushCubeHalfSize = NCL::Maths::Vector3(0.5f, 0.5f, 0.5f);
 			NCL::Maths::Vector3 plateHalfSize    = NCL::Maths::Vector3(2.0f, 0.2f, 2.0f);
 			NCL::Maths::Vector3 gateHalfSize     = NCL::Maths::Vector3(2.0f, 4.0f, 0.5f);
 

@@ -227,7 +227,8 @@ void TutorialGame::InitWorld() {
 	selectionObject = nullptr;
 	pushableCube = nullptr;
 	pressurePlate = nullptr;
-	gateObject = nullptr;
+	gateLeftObject = nullptr;
+	gateRightObject = nullptr;
 	gateOpen = false;
 	gateAnimT = 0.0f;
 	physics.UseGravity(true);
@@ -440,7 +441,7 @@ void TutorialGame::BuildSlopeScene() {
 
 	// Slope connecting platform to ground
 	Vector3 slopeHalfSize = Vector3(8.0f, 1.0f, 15.0f);
-	Vector3 slopePos = Vector3(0.0f, 8.0f, -5.0f);
+	Vector3 slopePos = Vector3(0.0f, 7.0f, -5.0f);
 	Quaternion slopeRot = Quaternion::AxisAngleToQuaterion(Vector3(1, 0, 0), 25.0f);
 	AddOBBCubeToWorld(slopePos, slopeHalfSize, slopeRot, 0.0f);
 
@@ -448,18 +449,28 @@ void TutorialGame::BuildSlopeScene() {
 	pushableCube = AddCubeToWorld(platformPos + Vector3(0.0f, platformHalfSize.y + pushCubeHalfSize.y, 0.0f), pushCubeHalfSize, 1.0f);
 
 	// Pressure plate at ramp bottom
-	Vector3 platePos = Vector3(0.0f, 2.2f, 12.0f);
+	Vector3 platePos = Vector3(-1.0f, 2.0f, 12.0f);
 	pressurePlate = AddOBBCubeToWorld(platePos, plateHalfSize, Quaternion::AxisAngleToQuaterion(Vector3(0, 1, 0), 0.0f), 0.0f);
 	if (pressurePlate && pressurePlate->GetRenderObject()) {
 		pressurePlate->GetRenderObject()->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f));
 	}
 
 	// Gate mechanism in front of plate
-	gateClosedPos = Vector3(0.0f, gateHalfSize.y, 20.0f);
-	gateOpenPos   = gateClosedPos + Vector3(0.0f, gateOpenHeight, 0.0f);
-	gateObject = AddCubeToWorld(gateClosedPos, gateHalfSize, 0.0f);
-	if (gateObject && gateObject->GetRenderObject()) {
-		gateObject->GetRenderObject()->SetColour(Vector4(0.2f, 0.2f, 0.8f, 1.0f));
+	Vector3 gateCenter = Vector3(0.0f, gateHalfSize.y, 20.0f);
+	float gateGap = 0.5f;
+	float gateOffset = gateHalfSize.x + gateGap * 0.5f;
+	gateLeftClosedPos = gateCenter + Vector3(-gateOffset, 0.0f, 0.0f);
+	gateRightClosedPos = gateCenter + Vector3(gateOffset, 0.0f, 0.0f);
+	gateLeftOpenPos = gateLeftClosedPos + Vector3(-gateSlideDistance, 0.0f, 0.0f);
+	gateRightOpenPos = gateRightClosedPos + Vector3(gateSlideDistance, 0.0f, 0.0f);
+
+	gateLeftObject = AddCubeToWorld(gateLeftClosedPos, gateHalfSize, 0.0f);
+	gateRightObject = AddCubeToWorld(gateRightClosedPos, gateHalfSize, 0.0f);
+	if (gateLeftObject && gateLeftObject->GetRenderObject()) {
+		gateLeftObject->GetRenderObject()->SetColour(Vector4(0.2f, 0.2f, 0.8f, 1.0f));
+	}
+	if (gateRightObject && gateRightObject->GetRenderObject()) {
+		gateRightObject->GetRenderObject()->SetColour(Vector4(0.2f, 0.2f, 0.8f, 1.0f));
 	}
 
 	// Spawn player on the platform
@@ -494,7 +505,7 @@ void TutorialGame::UpdateGateAndPlate(float dt) {
 		pressurePlate->GetRenderObject()->SetColour(color);
 	}
 
-	if (gateObject) {
+	if (gateLeftObject && gateRightObject) {
 		float target = gateOpen ? 1.0f : 0.0f;
 		float speed = 2.0f;
 		if (gateAnimT < target) {
@@ -504,10 +515,15 @@ void TutorialGame::UpdateGateAndPlate(float dt) {
 			gateAnimT = std::max(target, gateAnimT - speed * dt);
 		}
 
-		Vector3 newPos = gateClosedPos * (1.0f - gateAnimT) + gateOpenPos * gateAnimT;
-		gateObject->GetTransform().SetPosition(newPos);
-		if (gateObject->GetRenderObject()) {
-			gateObject->GetRenderObject()->SetColour(gateOpen ? Vector4(0.2f, 0.5f, 1.0f, 1.0f) : Vector4(0.2f, 0.2f, 0.8f, 1.0f));
+		Vector3 leftPos = gateLeftClosedPos * (1.0f - gateAnimT) + gateLeftOpenPos * gateAnimT;
+		Vector3 rightPos = gateRightClosedPos * (1.0f - gateAnimT) + gateRightOpenPos * gateAnimT;
+		gateLeftObject->GetTransform().SetPosition(leftPos);
+		gateRightObject->GetTransform().SetPosition(rightPos);
+		if (gateLeftObject->GetRenderObject()) {
+			gateLeftObject->GetRenderObject()->SetColour(gateOpen ? Vector4(0.2f, 0.5f, 1.0f, 1.0f) : Vector4(0.2f, 0.2f, 0.8f, 1.0f));
+		}
+		if (gateRightObject->GetRenderObject()) {
+			gateRightObject->GetRenderObject()->SetColour(gateOpen ? Vector4(0.2f, 0.5f, 1.0f, 1.0f) : Vector4(0.2f, 0.2f, 0.8f, 1.0f));
 		}
 	}
 }
