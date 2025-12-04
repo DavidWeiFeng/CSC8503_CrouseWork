@@ -23,6 +23,7 @@
 #include "Ray.h"
 #include "OBBVolume.h"
 #include <algorithm>
+#include <cmath>
 
 using namespace NCL;
 using namespace CSC8503;
@@ -153,9 +154,11 @@ void TutorialGame::UpdateGame(float dt) {
 	//Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));
 	Debug::Print("FPS: " + std::to_string(fps), Vector2(5, 80), Debug::YELLOW);
 	HandleGrab();
-	SelectObject(); // 处理对象选择
-	MoveSelectedObject();	 // 移动选定的对象
 	HandlePlayerMovement(dt); // 处理玩家输入移动
+	//SelectObject(); // 处理对象选择
+	//MoveSelectedObject();	 // 移动选定的对象
+	
+	UpdateGateAndPlate(dt);   // 更新压力板与大门
 	// 右键从玩家正前方发射射线，高亮命中的物体
 	world.OperateOnContents(
 		[dt](GameObject* o) {
@@ -222,6 +225,11 @@ void TutorialGame::InitWorld() {
 	physics.Clear();
 	playerObject = nullptr;
 	selectionObject = nullptr;
+	pushableCube = nullptr;
+	pressurePlate = nullptr;
+	gateObject = nullptr;
+	gateOpen = false;
+	gateAnimT = 0.0f;
 	physics.UseGravity(true);
 	BuildSlopeScene();
 }
@@ -426,30 +434,82 @@ void TutorialGame::BuildSlopeScene() {
 	AddFloorToWorld(Vector3(0, 0, 0));
 
 	// High platform for spawn
-	Vector3 platformHalfSize = Vector3(10.0f, 2.0f, 10.0f);
+	Vector3 platformHalfSize = Vector3(12.0f, 2.0f, 12.0f);
 	Vector3 platformPos = Vector3(0.0f, 12.0f, -30.0f);
 	AddCubeToWorld(platformPos, platformHalfSize, 0.0f);
 
 	// Slope connecting platform to ground
 	Vector3 slopeHalfSize = Vector3(8.0f, 1.0f, 15.0f);
-	Vector3 slopePos = Vector3(0.0f, 7.0f, -7.0f); //斜坡位置
+	Vector3 slopePos = Vector3(0.0f, 8.0f, -5.0f);
 	Quaternion slopeRot = Quaternion::AxisAngleToQuaterion(Vector3(1, 0, 0), 25.0f);
 	AddOBBCubeToWorld(slopePos, slopeHalfSize, slopeRot, 0.0f);
 
-	// Bottles (light cubes) at the bottom of the slope
-	Vector3 bottleHalfSize = Vector3(0.5f, 0.5f, 0.5f);
-	float bottleInverseMass = 5.0f; // light objects (mass = 0.2)
-	Vector3 bottleStart = Vector3(-2.0f, 2.5f, 12.0f);
-	float bottleSpacing = 2.0f;
-	for (int row = 0; row < 2; ++row) {
-		for (int col = 0; col < 5; ++col) {
-			Vector3 offset = Vector3(col * bottleSpacing, 0.0f, row * bottleSpacing);
-			AddCubeToWorld(bottleStart + offset, bottleHalfSize, bottleInverseMass);
-		}
+	// Pushable cube on the platform center
+	pushableCube = AddCubeToWorld(platformPos + Vector3(0.0f, platformHalfSize.y + pushCubeHalfSize.y, 0.0f), pushCubeHalfSize, 1.0f);
+
+	// Pressure plate at ramp bottom
+	Vector3 platePos = Vector3(0.0f, 2.2f, 12.0f);
+	pressurePlate = AddOBBCubeToWorld(platePos, plateHalfSize, Quaternion::AxisAngleToQuaterion(Vector3(0, 1, 0), 0.0f), 0.0f);
+	if (pressurePlate && pressurePlate->GetRenderObject()) {
+		pressurePlate->GetRenderObject()->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f));
+	}
+
+	// Gate mechanism in front of plate
+	gateClosedPos = Vector3(0.0f, gateHalfSize.y, 20.0f);
+	gateOpenPos   = gateClosedPos + Vector3(0.0f, gateOpenHeight, 0.0f);
+	gateObject = AddCubeToWorld(gateClosedPos, gateHalfSize, 0.0f);
+	if (gateObject && gateObject->GetRenderObject()) {
+		gateObject->GetRenderObject()->SetColour(Vector4(0.2f, 0.2f, 0.8f, 1.0f));
 	}
 
 	// Spawn player on the platform
-	playerObject = AddPlayerToWorld(Vector3(0.0f, 16.0f, -30.0f));
+	float spawnOffsetY = platformHalfSize.y + playerRadius + 4.5f;
+	playerObject = AddPlayerToWorld(platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f));
+}
+
+void TutorialGame::UpdateGateAndPlate(float dt) {
+	(void)dt;
+
+	bool platePressed = false;
+	if (pushableCube && pressurePlate) {
+		Vector3 platePos = pressurePlate->GetTransform().GetPosition();
+		Vector3 cubePos = pushableCube->GetTransform().GetPosition();
+		Vector3 delta = cubePos - platePos;
+
+		bool overlapX = std::abs(delta.x) <= (pushCubeHalfSize.x + plateHalfSize.x);
+		bool overlapZ = std::abs(delta.z) <= (pushCubeHalfSize.z + plateHalfSize.z);
+		bool overlapY = (cubePos.y - pushCubeHalfSize.y) <= (platePos.y + plateHalfSize.y + 0.4f);
+
+		if (overlapX && overlapZ && overlapY) {
+			platePressed = true;
+		}
+	}
+
+	if (platePressed) {
+		gateOpen = true; // latch open once activated
+	}
+
+	if (pressurePlate && pressurePlate->GetRenderObject()) {
+		Vector4 color = platePressed ? Vector4(0.2f, 1.0f, 0.2f, 1.0f) : Vector4(0.2f, 0.8f, 0.2f, 1.0f);
+		pressurePlate->GetRenderObject()->SetColour(color);
+	}
+
+	if (gateObject) {
+		float target = gateOpen ? 1.0f : 0.0f;
+		float speed = 2.0f;
+		if (gateAnimT < target) {
+			gateAnimT = std::min(target, gateAnimT + speed * dt);
+		}
+		else if (gateAnimT > target) {
+			gateAnimT = std::max(target, gateAnimT - speed * dt);
+		}
+
+		Vector3 newPos = gateClosedPos * (1.0f - gateAnimT) + gateOpenPos * gateAnimT;
+		gateObject->GetTransform().SetPosition(newPos);
+		if (gateObject->GetRenderObject()) {
+			gateObject->GetRenderObject()->SetColour(gateOpen ? Vector4(0.2f, 0.5f, 1.0f, 1.0f) : Vector4(0.2f, 0.2f, 0.8f, 1.0f));
+		}
+	}
 }
 
 /**

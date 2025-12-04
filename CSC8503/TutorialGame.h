@@ -40,6 +40,7 @@ namespace NCL {
 			void CreatedMixedGrid(int numRows, int numCols, float rowSpacing, float colSpacing);
 			void CreateAABBGrid(int numRows, int numCols, float rowSpacing, float colSpacing, const NCL::Maths::Vector3& cubeDims);
 			void BuildSlopeScene();
+			void UpdateGateAndPlate(float dt);
 
 			bool SelectObject();
 			void MoveSelectedObject();
@@ -85,6 +86,18 @@ namespace NCL {
 			float		grabMaxLinearSpeed  = 20.0f;
 			float		grabMaxAngularSpeed = 5.0f;
 			
+			// Puzzle objects
+			GameObject* pushableCube = nullptr;
+			GameObject* pressurePlate = nullptr;
+			GameObject* gateObject = nullptr;
+			bool gateOpen = false;
+			float gateAnimT = 0.0f;
+			float gateOpenHeight = 8.0f;
+			NCL::Maths::Vector3 gateClosedPos = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 gateOpenPos   = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 pushCubeHalfSize = NCL::Maths::Vector3(1.0f, 1.0f, 1.0f);
+			NCL::Maths::Vector3 plateHalfSize    = NCL::Maths::Vector3(2.0f, 0.2f, 2.0f);
+			NCL::Maths::Vector3 gateHalfSize     = NCL::Maths::Vector3(2.0f, 4.0f, 0.5f);
 
 			GameObject* selectionObject = nullptr;
 

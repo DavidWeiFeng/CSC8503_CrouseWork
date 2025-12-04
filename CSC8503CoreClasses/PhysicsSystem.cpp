@@ -245,7 +245,6 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 	float invMassB = physB->GetInverseMass();
 
 	if (invMassA + invMassB == 0.0f) {
-		std::cout << "both static" << std::endl;
 		return; // both static
 	}
 

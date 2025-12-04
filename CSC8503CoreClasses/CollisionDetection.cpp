@@ -649,6 +649,9 @@ bool CollisionDetection::OBBAABBIntersection(const OBBVolume& volumeA, const Tra
 	Vector3 halfB = volumeB.GetHalfDimensions();
 	Matrix3 orientA = Quaternion::RotationMatrix<Matrix3>(worldTransformA.GetOrientation());
 	Matrix3 orientB; // identity for AABB
+	orientB.array[0][0] = 1.0f; orientB.array[1][0] = 0.0f; orientB.array[2][0] = 0.0f;
+	orientB.array[0][1] = 0.0f; orientB.array[1][1] = 1.0f; orientB.array[2][1] = 0.0f;
+	orientB.array[0][2] = 0.0f; orientB.array[1][2] = 0.0f; orientB.array[2][2] = 1.0f;
 	return OBBIntersectionSAT(halfA, orientA, posA, halfB, orientB, posB, collisionInfo);
 }
 
