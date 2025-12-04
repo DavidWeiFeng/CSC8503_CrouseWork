@@ -225,6 +225,16 @@ bool CollisionDetection::ObjectIntersection(GameObject* a, GameObject* b, Collis
 		return OBBIntersection((OBBVolume&)*volA, transformA, (OBBVolume&)*volB, transformB, collisionInfo);
 	}
 
+	// OBB vs AABB
+	if (volA->type == VolumeType::OBB && volB->type == VolumeType::AABB) {
+		return OBBAABBIntersection((OBBVolume&)*volA, transformA, (AABBVolume&)*volB, transformB, collisionInfo);
+	}
+	if (volA->type == VolumeType::AABB && volB->type == VolumeType::OBB) {
+		collisionInfo.a = b;
+		collisionInfo.b = a;
+		return OBBAABBIntersection((OBBVolume&)*volB, transformB, (AABBVolume&)*volA, transformA, collisionInfo);
+	}
+
 	//AABB vs Sphere pairs
 	if (volA->type == VolumeType::AABB && volB->type == VolumeType::Sphere) {
 		return AABBSphereIntersection((AABBVolume&)*volA, transformA, (SphereVolume&)*volB, transformB, collisionInfo);
@@ -528,52 +538,118 @@ bool CollisionDetection::SphereCapsuleIntersection(
 	return true;
 }
 
+namespace {
+	static bool OBBIntersectionSAT(const Vector3& halfA, const Matrix3& orientA, const Vector3& posA,
+		const Vector3& halfB, const Matrix3& orientB, const Vector3& posB, CollisionDetection::CollisionInfo& collisionInfo) {
+		const float eps = 1e-5f;
+
+		Vector3 axisA[3] = { orientA.GetColumn(0), orientA.GetColumn(1), orientA.GetColumn(2) };
+		Vector3 axisB[3] = { orientB.GetColumn(0), orientB.GetColumn(1), orientB.GetColumn(2) };
+
+		float R[3][3];
+		float AbsR[3][3];
+
+		for (int i = 0; i < 3; ++i) {
+			for (int j = 0; j < 3; ++j) {
+				R[i][j] = Vector::Dot(axisA[i], axisB[j]);
+				AbsR[i][j] = std::abs(R[i][j]) + eps;
+			}
+		}
+
+		Vector3 tWorld = posB - posA;
+		Vector3 t = Vector3(Vector::Dot(tWorld, axisA[0]), Vector::Dot(tWorld, axisA[1]), Vector::Dot(tWorld, axisA[2]));
+
+		float minPenetration = std::numeric_limits<float>::max();
+		Vector3 bestNormal = Vector3(0, 1, 0);
+
+		auto tryUpdateNormal = [&](float overlap, const Vector3& axis) {
+			if (overlap < minPenetration) {
+				minPenetration = overlap;
+				bestNormal = axis;
+			}
+		};
+
+		// Axes of A
+		for (int i = 0; i < 3; ++i) {
+			float ra = halfA[i];
+			float rb = halfB.x * AbsR[i][0] + halfB.y * AbsR[i][1] + halfB.z * AbsR[i][2];
+			float dist = std::abs(t[i]);
+			if (dist > ra + rb) {
+				return false;
+			}
+			float overlap = (ra + rb) - dist;
+			Vector3 axis = (t[i] < 0.0f) ? -axisA[i] : axisA[i];
+			tryUpdateNormal(overlap, axis);
+		}
+
+		// Axes of B
+		for (int j = 0; j < 3; ++j) {
+			float ra = halfA.x * AbsR[0][j] + halfA.y * AbsR[1][j] + halfA.z * AbsR[2][j];
+			float rb = halfB[j];
+			float s = t.x * R[0][j] + t.y * R[1][j] + t.z * R[2][j];
+			float dist = std::abs(s);
+			if (dist > ra + rb) {
+				return false;
+			}
+			float overlap = (ra + rb) - dist;
+			Vector3 axis = (s < 0.0f) ? -axisB[j] : axisB[j];
+			tryUpdateNormal(overlap, axis);
+		}
+
+		// Cross product axes
+		for (int i = 0; i < 3; ++i) {
+			for (int j = 0; j < 3; ++j) {
+				float ra = halfA[(i + 1) % 3] * AbsR[(i + 2) % 3][j] + halfA[(i + 2) % 3] * AbsR[(i + 1) % 3][j];
+				float rb = halfB[(j + 1) % 3] * AbsR[i][(j + 2) % 3] + halfB[(j + 2) % 3] * AbsR[i][(j + 1) % 3];
+				float dist = std::abs(t[(i + 2) % 3] * R[(i + 1) % 3][j] - t[(i + 1) % 3] * R[(i + 2) % 3][j]);
+				if (dist > ra + rb) {
+					return false;
+				}
+				float overlap = (ra + rb) - dist;
+				Vector3 axis = Vector::Cross(axisA[i], axisB[j]);
+				if (Vector::LengthSquared(axis) < eps) {
+					continue;
+				}
+				axis = Vector::Normalise(axis);
+				if (Vector::Dot(axis, tWorld) < 0.0f) {
+					axis = -axis;
+				}
+				tryUpdateNormal(overlap, axis);
+			}
+		}
+
+		if (minPenetration == std::numeric_limits<float>::max()) {
+			return false;
+		}
+
+		float centerDist = Vector::Dot(tWorld, bestNormal);
+		Vector3 contactPoint = posA + bestNormal * (centerDist * 0.5f);
+		collisionInfo.AddContactPoint(contactPoint - posA, contactPoint - posB, bestNormal, minPenetration);
+		collisionInfo.framesLeft = 1;
+		return true;
+	}
+}
+
 bool CollisionDetection::OBBIntersection(const OBBVolume& volumeA, const Transform& worldTransformA,
 	const OBBVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo) {
-	// Approximate by converting each OBB to a world-aligned AABB using orientation absolute values
 	Vector3 posA = worldTransformA.GetPosition();
 	Vector3 posB = worldTransformB.GetPosition();
-
 	Vector3 halfA = volumeA.GetHalfDimensions();
 	Vector3 halfB = volumeB.GetHalfDimensions();
-
 	Matrix3 orientA = Quaternion::RotationMatrix<Matrix3>(worldTransformA.GetOrientation());
 	Matrix3 orientB = Quaternion::RotationMatrix<Matrix3>(worldTransformB.GetOrientation());
+	return OBBIntersectionSAT(halfA, orientA, posA, halfB, orientB, posB, collisionInfo);
+}
 
-	Matrix3 absA = Matrix::Absolute(orientA);
-	Matrix3 absB = Matrix::Absolute(orientB);
-
-	Vector3 aabbHalfA = Vector3(
-		absA.array[0][0] * halfA.x + absA.array[1][0] * halfA.y + absA.array[2][0] * halfA.z,
-		absA.array[0][1] * halfA.x + absA.array[1][1] * halfA.y + absA.array[2][1] * halfA.z,
-		absA.array[0][2] * halfA.x + absA.array[1][2] * halfA.y + absA.array[2][2] * halfA.z
-	);
-
-	Vector3 aabbHalfB = Vector3(
-		absB.array[0][0] * halfB.x + absB.array[1][0] * halfB.y + absB.array[2][0] * halfB.z,
-		absB.array[0][1] * halfB.x + absB.array[1][1] * halfB.y + absB.array[2][1] * halfB.z,
-		absB.array[0][2] * halfB.x + absB.array[1][2] * halfB.y + absB.array[2][2] * halfB.z
-	);
-
-	if (!AABBTest(posA, posB, aabbHalfA, aabbHalfB)) {
-		return false;
-	}
-
-	Vector3 delta = posB - posA;
-	Vector3 normal = Vector::Normalise(delta);
-	if (Vector::LengthSquared(delta) < 1e-6f) {
-		normal = Vector3(0, 1, 0);
-	}
-
-	Vector3 total = aabbHalfA + aabbHalfB;
-	float px = total.x - std::abs(delta.x);
-	float py = total.y - std::abs(delta.y);
-	float pz = total.z - std::abs(delta.z);
-	float penetration = std::min(px, std::min(py, pz));
-
-	collisionInfo.AddContactPoint(Vector3(), Vector3(), normal, penetration);
-	collisionInfo.framesLeft = 1;
-	return true;
+bool CollisionDetection::OBBAABBIntersection(const OBBVolume& volumeA, const Transform& worldTransformA,
+	const AABBVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo) {
+	Vector3 posA = worldTransformA.GetPosition();
+	Vector3 posB = worldTransformB.GetPosition();
+	Vector3 halfA = volumeA.GetHalfDimensions();
+	Vector3 halfB = volumeB.GetHalfDimensions();
+	Matrix3 orientA = Quaternion::RotationMatrix<Matrix3>(worldTransformA.GetOrientation());
+	Matrix3 orientB; // identity for AABB
+	return OBBIntersectionSAT(halfA, orientA, posA, halfB, orientB, posB, collisionInfo);
 }
 
 Matrix4 GenerateInverseView(const Camera& c) {
