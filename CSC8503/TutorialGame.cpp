@@ -21,6 +21,7 @@
 #include "GameTechRendererInterface.h"
 
 #include "Ray.h"
+#include "OBBVolume.h"
 #include <algorithm>
 
 using namespace NCL;
@@ -222,9 +223,7 @@ void TutorialGame::InitWorld() {
 	playerObject = nullptr;
 	selectionObject = nullptr;
 	physics.UseGravity(true);
-	InitGameExamples();
-
-	AddFloorToWorld(Vector3(0, 0, 0));
+	BuildSlopeScene();
 }
 
 /**
@@ -298,6 +297,28 @@ GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimens
 
 	cube->GetTransform()
 		.SetPosition(position)
+		.SetScale(dimensions * 2.0f);
+
+	cube->SetRenderObject(new RenderObject(cube->GetTransform(), cubeMesh, checkerMaterial));
+	cube->SetPhysicsObject(new PhysicsObject(cube->GetTransform(), cube->GetBoundingVolume()));
+
+	cube->GetPhysicsObject()->SetInverseMass(inverseMass);
+	cube->GetPhysicsObject()->InitCubeInertia();
+
+	world.AddGameObject(cube);
+
+	return cube;
+}
+
+GameObject* TutorialGame::AddOBBCubeToWorld(const Vector3& position, Vector3 dimensions, const Quaternion& orientation, float inverseMass) {
+	GameObject* cube = new GameObject();
+
+	OBBVolume* volume = new OBBVolume(dimensions);
+	cube->SetBoundingVolume(volume);
+
+	cube->GetTransform()
+		.SetPosition(position)
+		.SetOrientation(orientation)
 		.SetScale(dimensions * 2.0f);
 
 	cube->SetRenderObject(new RenderObject(cube->GetTransform(), cubeMesh, checkerMaterial));
@@ -399,7 +420,36 @@ GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
  */
 void TutorialGame::InitGameExamples() {
 	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
-	AddCubeToWorld(Vector3(0, 5, 10),Vector3(1,1,1),1.0);
+}
+
+void TutorialGame::BuildSlopeScene() {
+	AddFloorToWorld(Vector3(0, 0, 0));
+
+	// High platform for spawn
+	Vector3 platformHalfSize = Vector3(10.0f, 2.0f, 10.0f);
+	Vector3 platformPos = Vector3(0.0f, 12.0f, -30.0f);
+	AddCubeToWorld(platformPos, platformHalfSize, 0.0f);
+
+	// Slope connecting platform to ground
+	Vector3 slopeHalfSize = Vector3(8.0f, 1.0f, 15.0f);
+	Vector3 slopePos = Vector3(0.0f, 7.0f, -7.0f); //斜坡位置
+	Quaternion slopeRot = Quaternion::AxisAngleToQuaterion(Vector3(1, 0, 0), 25.0f);
+	AddOBBCubeToWorld(slopePos, slopeHalfSize, slopeRot, 0.0f);
+
+	// Bottles (light cubes) at the bottom of the slope
+	Vector3 bottleHalfSize = Vector3(0.5f, 0.5f, 0.5f);
+	float bottleInverseMass = 5.0f; // light objects (mass = 0.2)
+	Vector3 bottleStart = Vector3(-2.0f, 2.5f, 12.0f);
+	float bottleSpacing = 2.0f;
+	for (int row = 0; row < 2; ++row) {
+		for (int col = 0; col < 5; ++col) {
+			Vector3 offset = Vector3(col * bottleSpacing, 0.0f, row * bottleSpacing);
+			AddCubeToWorld(bottleStart + offset, bottleHalfSize, bottleInverseMass);
+		}
+	}
+
+	// Spawn player on the platform
+	playerObject = AddPlayerToWorld(Vector3(0.0f, 16.0f, -30.0f));
 }
 
 /**

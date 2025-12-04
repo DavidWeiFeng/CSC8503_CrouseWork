@@ -39,6 +39,7 @@ namespace NCL {
 			void CreateSphereGrid(int numRows, int numCols, float rowSpacing, float colSpacing, float radius);
 			void CreatedMixedGrid(int numRows, int numCols, float rowSpacing, float colSpacing);
 			void CreateAABBGrid(int numRows, int numCols, float rowSpacing, float colSpacing, const NCL::Maths::Vector3& cubeDims);
+			void BuildSlopeScene();
 
 			bool SelectObject();
 			void MoveSelectedObject();
@@ -52,6 +53,7 @@ namespace NCL {
 			GameObject* AddFloorToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddSphereToWorld(const NCL::Maths::Vector3& position, float radius, float inverseMass = 10.0f);
 			GameObject* AddCubeToWorld(const NCL::Maths::Vector3& position, NCL::Maths::Vector3 dimensions, float inverseMass = 10.0f);
+			GameObject* AddOBBCubeToWorld(const NCL::Maths::Vector3& position, NCL::Maths::Vector3 dimensions, const NCL::Maths::Quaternion& orientation, float inverseMass = 10.0f);
 
 			GameObject* AddPlayerToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddEnemyToWorld(const NCL::Maths::Vector3& position);
