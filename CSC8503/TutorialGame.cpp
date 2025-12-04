@@ -29,6 +29,21 @@ using namespace NCL;
 using namespace CSC8503;
 using namespace NCL::Maths;
 
+namespace {
+        const Vector3 PLATFORM_POSITION = Vector3(0, 10.0f, 20.0f);
+        const Vector3 PLATFORM_HALF_SIZE = Vector3(6.0f, 1.0f, 6.0f);
+
+        const Vector3 RAMP_POSITION = Vector3(0.0f, 5.5f, 8.0f);
+        const Vector3 RAMP_HALF_SIZE = Vector3(3.0f, 1.0f, 12.0f);
+        const Quaternion RAMP_ORIENTATION = Quaternion::EulerAnglesToQuaternion(-25.0f, 0.0f, 0.0f);
+
+        const Vector3 BOTTLE_HALF_SIZE = Vector3(0.35f, 0.5f, 0.35f);
+        const float BOTTLE_INVERSE_MASS = 2.5f;
+        const int BOTTLE_COUNT = 10;
+        const Vector3 BOTTLE_SPACING = Vector3(0.8f, 0.0f, 0.0f);
+        const float BOTTLE_GROUND_OFFSET = 0.1f;
+}
+
 /**
  * @brief 构造一个新的教程游戏。
  * @param inWorld 游戏世界。
@@ -221,11 +236,10 @@ void TutorialGame::InitCamera() {
 void TutorialGame::InitWorld() {
 	world.ClearAndErase();
 	physics.Clear();
-	playerObject = nullptr;
-	selectionObject = nullptr;
-	physics.UseGravity(true);
-	InitGameExamples();
-	BuildSlopeScene();
+        playerObject = nullptr;
+        selectionObject = nullptr;
+        physics.UseGravity(true);
+        BuildSlopeScene();
 }
 
 /**
@@ -234,7 +248,7 @@ void TutorialGame::InitWorld() {
  * @return 创建的地面游戏对象。
  */
 GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
-	GameObject* floor = new GameObject();
+        GameObject* floor = new GameObject();
 
 	Vector3 floorSize = Vector3(200, 2, 200);
 	AABBVolume* volume = new AABBVolume(floorSize);
@@ -252,6 +266,34 @@ GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
 	world.AddGameObject(floor);
 
 	return floor;
+}
+
+GameObject* TutorialGame::AddHighPlatform(const Vector3& position, const Vector3& halfSize) {
+        GameObject* platform = AddCubeToWorld(position, halfSize, 0.0f);
+
+        playerSpawnPosition = position + Vector3(0.0f, halfSize.y + playerRadius + 0.25f, 0.0f);
+
+        return platform;
+}
+
+GameObject* TutorialGame::AddRampToWorld(const Vector3& position, const Vector3& halfSize, const Quaternion& orientation) {
+        return AddOBBCubeToWorld(position, halfSize, orientation, 0.0f);
+}
+
+void TutorialGame::SpawnBottleCluster(const Vector3& startPosition) {
+        Vector3 dropPos = startPosition;
+
+        for (int i = 0; i < BOTTLE_COUNT; ++i) {
+                GameObject* bottle = AddCubeToWorld(dropPos, BOTTLE_HALF_SIZE, BOTTLE_INVERSE_MASS);
+                bottle->SetName("o瓶子");
+
+                PhysicsObject* phys = bottle->GetPhysicsObject();
+                if (phys) {
+                        phys->InitCubeInertia();
+                }
+
+                dropPos += BOTTLE_SPACING;
+        }
 }
 
 /**
@@ -493,14 +535,21 @@ void TutorialGame::CreateAABBGrid(int numRows, int numCols, float rowSpacing, fl
  * @brief 构建场景骨架：高台出生 + 连接地面的斜坡 + 地面。
  */
 void TutorialGame::BuildSlopeScene() {
-	// 地面
-	
-	AddCubeToWorld(Vector3(0, -2.0f, 0), Vector3(100, 2, 100), 0.0f);
+        // 地面
 
-	// 高台
-	Vector3 platformPos = Vector3(0, 10.0f, 20.0f);
-	AddCubeToWorld(platformPos, Vector3(5, 1, 5), 0.0f);
-	playerObject = AddPlayerToWorld(Vector3(0, 20.0f, 20));
+        AddCubeToWorld(Vector3(0, -2.0f, 0), Vector3(100, 2, 100), 0.0f);
+
+        // 高台
+        AddHighPlatform(PLATFORM_POSITION, PLATFORM_HALF_SIZE);
+        playerObject = AddPlayerToWorld(playerSpawnPosition);
+
+        // 斜坡：从高台朝 -Z 方向下滑到地面
+        AddRampToWorld(RAMP_POSITION, RAMP_HALF_SIZE, RAMP_ORIENTATION);
+
+        // 斜坡底部的瓶子集群
+        Vector3 rampBottom = RAMP_POSITION + (RAMP_ORIENTATION * Vector3(0.0f, 0.0f, -RAMP_HALF_SIZE.z));
+        Vector3 bottleStart = rampBottom + Vector3(-(BOTTLE_SPACING.x * 3.0f), BOTTLE_HALF_SIZE.y + BOTTLE_GROUND_OFFSET, -1.5f);
+        SpawnBottleCluster(bottleStart);
 	// 斜坡：从高台朝 -Z 方向下滑到地面
 	//NCL::Maths::Quaternion slopeRot = Quaternion::EulerAnglesToQuaternion(-20.0f, 0.0f, 0.0f);
 	//AddOBBCubeToWorld(Vector3(0, 6.0f, 8.0f), Vector3(4, 1, 12), slopeRot, 0.0f);

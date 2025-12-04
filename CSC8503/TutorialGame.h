@@ -39,7 +39,12 @@ namespace NCL {
 			void CreateSphereGrid(int numRows, int numCols, float rowSpacing, float colSpacing, float radius);
 			void CreatedMixedGrid(int numRows, int numCols, float rowSpacing, float colSpacing);
 			void CreateAABBGrid(int numRows, int numCols, float rowSpacing, float colSpacing, const NCL::Maths::Vector3& cubeDims);
-			void BuildSlopeScene();
+                        void BuildSlopeScene();
+
+                        GameObject* AddHighPlatform(const NCL::Maths::Vector3& position, const NCL::Maths::Vector3& halfSize);
+                        GameObject* AddRampToWorld(const NCL::Maths::Vector3& position,
+                                const NCL::Maths::Vector3& halfSize, const NCL::Maths::Quaternion& orientation);
+                        void SpawnBottleCluster(const NCL::Maths::Vector3& startPosition);
 
 			bool SelectObject();
 			void MoveSelectedObject();
@@ -56,8 +61,10 @@ namespace NCL {
 			GameObject* AddOBBCubeToWorld(const NCL::Maths::Vector3& position, NCL::Maths::Vector3 dimensions, const NCL::Maths::Quaternion& orientation, float inverseMass = 10.0f);
 
 			GameObject* AddPlayerToWorld(const NCL::Maths::Vector3& position);
-			GameObject* AddEnemyToWorld(const NCL::Maths::Vector3& position);
-			GameObject* AddBonusToWorld(const NCL::Maths::Vector3& position);
+                        GameObject* AddEnemyToWorld(const NCL::Maths::Vector3& position);
+                        GameObject* AddBonusToWorld(const NCL::Maths::Vector3& position);
+
+                        NCL::Maths::Vector3 playerSpawnPosition = NCL::Maths::Vector3();
 
 			GameObject* playerObject = nullptr;
 			GameWorld& world;
