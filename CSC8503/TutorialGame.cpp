@@ -159,6 +159,10 @@ void TutorialGame::UpdateGame(float dt) {
 	//Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
 	//Debug::DrawLine(Vector3(), Vector3(0, 100, 0), Vector4(1, 0, 0, 1));
 	Debug::Print("FPS: " + std::to_string(fps), Vector2(5, 80), Debug::YELLOW);
+	if (playerObject) {
+		Vector3 pp = playerObject->GetTransform().GetPosition();
+		Debug::Print("Player: " + std::to_string(pp.x) + "," + std::to_string(pp.y) + "," + std::to_string(pp.z), Vector2(5, 75), Debug::WHITE);
+	}
 	HandleGrab();
 	HandlePlayerMovement(dt); // 处理玩家输入移动
 	//SelectObject(); // 处理对象选择
