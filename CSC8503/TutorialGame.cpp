@@ -4,22 +4,16 @@
 #include "PhysicsObject.h"
 #include "RenderObject.h"
 #include "TextureLoader.h"
-
 #include "PositionConstraint.h"
 #include "OrientationConstraint.h"
 #include "StateGameObject.h"
-
 #include "Window.h"
 #include "Texture.h"
 #include "Shader.h"
 #include "Mesh.h"
-
 #include "Debug.h"
-
 #include "KeyboardMouseController.h"
-
 #include "GameTechRendererInterface.h"
-
 #include "Ray.h"
 #include "OBBVolume.h"
 #include <algorithm>
@@ -63,12 +57,10 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 	sphereMesh	= renderer.LoadMesh("sphere.msh");
 	catMesh		= renderer.LoadMesh("ORIGAMI_Chat.msh");
 	kittenMesh	= renderer.LoadMesh("Kitten.msh");
-
+	coinMesh = renderer.LoadMesh("Coin.msh");
 	enemyMesh	= renderer.LoadMesh("Keeper.msh");
-
 	bonusMesh	= renderer.LoadMesh("19463_Kitten_Head_v1.msh");
 	capsuleMesh = renderer.LoadMesh("capsule.msh");
-
 	defaultTex	= renderer.LoadTexture("Default.png");
 	checkerTex	= renderer.LoadTexture("checkerboard.png");
 	glassTex	= renderer.LoadTexture("stainedglass.tga");
@@ -127,13 +119,6 @@ void TutorialGame::UpdateGame(float dt) {
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F2)) {
 		InitCamera(); //F2 will reset the camera to a specific default place
 	}
-
-	//Running certain physics updates in a consistent order might cause some
-	//bias in the calculations - the same objects might keep 'winning' the constraint
-	//allowing the other one to stretch too much etc. Shuffling the order so that it
-	//is random every frame can help reduce such bias.
-
-
 	// 随机化约束顺序 - 减少计算偏差
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
 		world.ShuffleConstraints(true);
@@ -164,10 +149,7 @@ void TutorialGame::UpdateGame(float dt) {
 		Debug::Print("Player: " + std::to_string(pp.x) + "," + std::to_string(pp.y) + "," + std::to_string(pp.z), Vector2(5, 75), Debug::WHITE);
 	}
 	HandleGrab();
-	HandlePlayerMovement(dt); // 处理玩家输入移动
-	//SelectObject(); // 处理对象选择
-	//MoveSelectedObject();	 // 移动选定的对象
-	
+	HandlePlayerMovement(dt); // 处理玩家输入移动	
 	UpdateGateAndPlate(dt);   // 更新压力板与大门
 	UpdateEnemyAI(dt);        // 更新敌人AI
 	// 右键从玩家正前方发射射线，高亮命中的物体
@@ -246,33 +228,6 @@ void TutorialGame::InitWorld() {
 	physics.UseGravity(true);
 	BuildSlopeScene();
 }
-
-/**
- * @brief 向世界添加一个大型不可移动的立方体作为地面。
- * @param position 地面的位置。
- * @return 创建的地面游戏对象。
- */
-GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
-	GameObject* floor = new GameObject();
-
-	Vector3 floorSize = Vector3(200, 1, 200);
-	AABBVolume* volume = new AABBVolume(floorSize);
-	floor->SetBoundingVolume(volume);
-	floor->GetTransform()
-		.SetScale(floorSize * 1.0f)
-		.SetPosition(position);
-
-	floor->SetRenderObject(new RenderObject(floor->GetTransform(), cubeMesh, checkerMaterial));
-	floor->SetPhysicsObject(new PhysicsObject(floor->GetTransform(), floor->GetBoundingVolume()));
-
-	floor->GetPhysicsObject()->SetInverseMass(0);
-	floor->GetPhysicsObject()->InitCubeInertia();
-
-	world.AddGameObject(floor);
-
-	return floor;
-}
-
 /**
  * @brief 构建一个使用球体网格进行图形显示，并使用边界球体进行刚体表示的游戏对象。
  * @details 这和立方体函数将让你构建很多‘简单’的物理世界。你可能还需要另一个函数来创建OBB立方体。
@@ -281,27 +236,31 @@ GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
  * @param inverseMass 球体的逆质量。
  * @return 创建的球体游戏对象。
  */
-GameObject* TutorialGame::AddSphereToWorld(const Vector3& position, float radius, float inverseMass) {
+GameObject* TutorialGame::AddSphereToWorld(const Vector3& position,
+	float radius,
+	float inverseMass,
+	Rendering::Mesh* mesh,
+	const GameTechMaterial* material) {
 	GameObject* sphere = new GameObject();
 
 	Vector3 sphereSize = Vector3(radius, radius, radius);
 	SphereVolume* volume = new SphereVolume(radius);
 	sphere->SetBoundingVolume(volume);
-
-	sphere->GetTransform()
-		.SetScale(sphereSize)
-		.SetPosition(position);
-
-	sphere->SetRenderObject(new RenderObject(sphere->GetTransform(), sphereMesh, checkerMaterial));
+	sphere->GetTransform().SetScale(sphereSize).SetPosition(position);
+	// ---------- 默认资源处理 ----------
+	if (!mesh) {
+		mesh = sphereMesh;   // class 成员变量
+	}
+	const GameTechMaterial& usedMaterial =
+		material ? *material : checkerMaterial;  // class 成员变量
+	sphere->SetRenderObject(new RenderObject(sphere->GetTransform(),mesh,usedMaterial));
 	sphere->SetPhysicsObject(new PhysicsObject(sphere->GetTransform(), sphere->GetBoundingVolume()));
-
 	sphere->GetPhysicsObject()->SetInverseMass(inverseMass);
 	sphere->GetPhysicsObject()->InitSphereInertia();
-
 	world.AddGameObject(sphere);
-
 	return sphere;
 }
+
 
 /**
  * @brief 构建一个使用AABB体积的立方体游戏对象。
@@ -310,17 +269,20 @@ GameObject* TutorialGame::AddSphereToWorld(const Vector3& position, float radius
  * @param inverseMass 立方体的逆质量。
  * @return 创建的立方体游戏对象。
  */
-GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimensions, float inverseMass) {
-	GameObject* cube = new GameObject();
+GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimensions, float inverseMass, 
+	Rendering::Mesh* mesh,
+	const GameTechMaterial* material) {
 
+	GameObject* cube = new GameObject();
 	AABBVolume* volume = new AABBVolume(dimensions);
 	cube->SetBoundingVolume(volume);
-
-	cube->GetTransform()
-		.SetPosition(position)
-		.SetScale(dimensions * 2.0f);
-
-	cube->SetRenderObject(new RenderObject(cube->GetTransform(), cubeMesh, checkerMaterial));
+	cube->GetTransform().SetPosition(position).SetScale(dimensions * 2.0f);
+	if (!mesh) {
+		mesh = cubeMesh;  
+	}
+	const GameTechMaterial& usedMaterial =
+		material ? *material : checkerMaterial;  // class 成员变量
+	cube->SetRenderObject(new RenderObject(cube->GetTransform(), mesh, usedMaterial));
 	cube->SetPhysicsObject(new PhysicsObject(cube->GetTransform(), cube->GetBoundingVolume()));
 
 	cube->GetPhysicsObject()->SetInverseMass(inverseMass);
@@ -352,144 +314,14 @@ GameObject* TutorialGame::AddOBBCubeToWorld(const Vector3& position, Vector3 dim
 
 	return cube;
 }
-
-/**
- * @brief 向世界添加一个玩家角色。
- * @param position 玩家的位置。
- * @return 创建的玩家游戏对象。
- */
-GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
-	float meshSize		= 1.0f;
-	float inverseMass	= 0.5f;
-
-	GameObject* character = new GameObject();
-	SphereVolume* volume  = new SphereVolume(1.0f);
-
-	character->SetBoundingVolume(volume);
-
-	character->GetTransform()
-		.SetScale(Vector3(meshSize, meshSize, meshSize))
-		.SetPosition(position);
-
-	character->SetRenderObject(new RenderObject(character->GetTransform(), catMesh, notexMaterial));
-	character->SetPhysicsObject(new PhysicsObject(character->GetTransform(), character->GetBoundingVolume()));
-
-	character->GetPhysicsObject()->SetInverseMass(inverseMass);
-	character->GetPhysicsObject()->InitSphereInertia();
-
-	world.AddGameObject(character);
-
-	return character;
-}
-
-/**
- * @brief 向世界添加一个敌人角色。
- * @param position 敌人的位置。
- * @return 创建的敌人游戏对象。
- */
-GameObject* TutorialGame::AddEnemyToWorld(const Vector3& position) {
-	float meshSize		= 3.0f;
-	float inverseMass	= 0.5f;
-
-	GameObject* character = new GameObject();
-
-	AABBVolume* volume = new AABBVolume(Vector3(0.3f, 0.9f, 0.3f) * meshSize);
-	character->SetBoundingVolume(volume);
-
-	character->GetTransform()
-		.SetScale(Vector3(meshSize, meshSize, meshSize))
-		.SetPosition(position);
-
-	character->SetRenderObject(new RenderObject(character->GetTransform(), enemyMesh, notexMaterial));
-	character->SetPhysicsObject(new PhysicsObject(character->GetTransform(), character->GetBoundingVolume()));
-
-	character->GetPhysicsObject()->SetInverseMass(inverseMass);
-	character->GetPhysicsObject()->InitSphereInertia();
-
-	world.AddGameObject(character);
-
-	return character;
-}
-
-/**
- * @brief 向世界添加一个奖励物品。
- * @param position 奖励物品的位置。
- * @return 创建的奖励物品游戏对象。
- */
-GameObject* TutorialGame::AddBonusToWorld(const Vector3& position) {
-	GameObject* apple = new GameObject();
-
-	SphereVolume* volume = new SphereVolume(0.5f);
-	apple->SetBoundingVolume(volume);
-	apple->GetTransform()
-		.SetScale(Vector3(2, 2, 2))
-		.SetPosition(position);
-
-	apple->SetRenderObject(new RenderObject(apple->GetTransform(), bonusMesh, glassMaterial));
-	apple->SetPhysicsObject(new PhysicsObject(apple->GetTransform(), apple->GetBoundingVolume()));
-
-	apple->GetPhysicsObject()->SetInverseMass(1.0f);
-	apple->GetPhysicsObject()->InitSphereInertia();
-
-	world.AddGameObject(apple);
-
-	return apple;
-}
-
 /**
  * @brief 初始化游戏中的一些示例对象，如玩家、敌人和奖励品。
  */
-void TutorialGame::InitGameExamples() {
-	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
-}
+//void TutorialGame::InitGameExamples() {
+//	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
+//}
 
-void TutorialGame::BuildSlopeScene() {
-	AddFloorToWorld(Vector3(0, 0, 0));
 
-	// High platform for spawn
-	Vector3 platformHalfSize = Vector3(12.0f, 2.0f, 12.0f);
-	Vector3 platformPos = Vector3(0.0f, 12.0f, -30.0f);
-	AddCubeToWorld(platformPos, platformHalfSize, 0.0f);
-
-	// Slope connecting platform to ground
-	Vector3 slopeHalfSize = Vector3(8.0f, 1.0f, 15.0f);
-	Vector3 slopePos = Vector3(0.0f, 7.0f, -5.0f);
-	Quaternion slopeRot = Quaternion::AxisAngleToQuaterion(Vector3(1, 0, 0), 25.0f);
-	AddOBBCubeToWorld(slopePos, slopeHalfSize, slopeRot, 0.0f);
-
-	// Pushable cube on the platform center
-	pushableCube = AddCubeToWorld(platformPos + Vector3(0.0f, platformHalfSize.y + pushCubeHalfSize.y, 0.0f), pushCubeHalfSize, 1.0f);
-
-	// Pressure plate at ramp bottom
-	Vector3 platePos = Vector3(-1.0f, 2.0f, 12.0f);
-	pressurePlate = AddOBBCubeToWorld(platePos, plateHalfSize, Quaternion::AxisAngleToQuaterion(Vector3(0, 1, 0), 0.0f), 0.0f);
-	if (pressurePlate && pressurePlate->GetRenderObject()) {
-		pressurePlate->GetRenderObject()->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f));
-	}
-
-	// Gate mechanism in front of plate	
-	Vector3 gateCenter = Vector3(0.0f, gateHalfSize.y, 20.0f);
-	float gateGap = 0.5f;
-	float gateOffset = gateHalfSize.x + gateGap * 0.5f;
-	gateLeftClosedPos = gateCenter + Vector3(-gateOffset, 0.0f, 0.0f);
-	gateRightClosedPos = gateCenter + Vector3(gateOffset, 0.0f, 0.0f);
-	gateLeftOpenPos = gateLeftClosedPos + Vector3(-gateSlideDistance, 0.0f, 0.0f);
-	gateRightOpenPos = gateRightClosedPos + Vector3(gateSlideDistance, 0.0f, 0.0f);
-
-	gateLeftObject = AddCubeToWorld(gateLeftClosedPos, gateHalfSize, 0.0f);
-	gateRightObject = AddCubeToWorld(gateRightClosedPos, gateHalfSize, 0.0f);
-	if (gateLeftObject && gateLeftObject->GetRenderObject()) {
-		gateLeftObject->GetRenderObject()->SetColour(Vector4(0.2f, 0.2f, 0.8f, 1.0f));
-	}
-	if (gateRightObject && gateRightObject->GetRenderObject()) {
-		gateRightObject->GetRenderObject()->SetColour(Vector4(0.2f, 0.2f, 0.8f, 1.0f));
-	}
-
-	// Spawn player on the platform
-	float spawnOffsetY = platformHalfSize.y + playerRadius + 4.5f;
-	playerObject = AddPlayerToWorld(platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f));
-	InitEnemyAgent(Vector3(40.0f, 5.5f, 5.0f));
-}
 
 void TutorialGame::UpdateGateAndPlate(float dt) {
 	(void)dt;
@@ -540,68 +372,6 @@ void TutorialGame::UpdateGateAndPlate(float dt) {
 		}
 	}
 }
-
-/**
- * @brief 创建一个由球体组成的网格。
- * @param numRows 网格的行数。
- * @param numCols 网格的列数。
- * @param rowSpacing 行间距。
- * @param colSpacing 列间距。
- * @param radius 球体的半径。
- */
-void TutorialGame::CreateSphereGrid(int numRows, int numCols, float rowSpacing, float colSpacing, float radius) {
-	for (int x = 0; x < numCols; ++x) {
-		for (int z = 0; z < numRows; ++z) {
-			Vector3 position = Vector3(x * colSpacing, 10.0f, z * rowSpacing);
-			AddSphereToWorld(position, radius, 1.0f);
-		}
-	}
-	AddFloorToWorld(Vector3(0, 0, 0));
-}
-
-/**
- * @brief 创建一个由立方体和球体混合组成的网格。
- * @param numRows 网格的行数。
- * @param numCols 网格的列数。
- * @param rowSpacing 行间距。
- * @param colSpacing 列间距。
- */
-void TutorialGame::CreatedMixedGrid(int numRows, int numCols, float rowSpacing, float colSpacing) {
-	float sphereRadius = 1.0f;
-	Vector3 cubeDims = Vector3(1, 1, 1);
-	AddCubeToWorld(Vector3(20,20,20), cubeDims);
-	AddSphereToWorld(Vector3(9,9,9), sphereRadius);
-	//for (int x = 0; x < numCols; ++x) {
-	//	for (int z = 0; z < numRows; ++z) {
-	//		Vector3 position = Vector3(x * colSpacing, 10.0f, z * rowSpacing);
-
-	//		if (rand() % 2) {
-	//			AddCubeToWorld(position, cubeDims);
-	//		}
-	//		else {
-	//			AddSphereToWorld(position, sphereRadius);
-	//		}
-	//	}
-	//}
-}
-
-/**
- * @brief 创建一个由AABB立方体组成的网格。
- * @param numRows 网格的行数。
- * @param numCols 网格的列数。
- * @param rowSpacing 行间距。
- * @param colSpacing 列间距。
- * @param cubeDims 立方体的尺寸。
- */
-void TutorialGame::CreateAABBGrid(int numRows, int numCols, float rowSpacing, float colSpacing, const Vector3& cubeDims) {
-	for (int x = 1; x < numCols+1; ++x) {
-		for (int z = 1; z < numRows+1; ++z) {
-			Vector3 position = Vector3(x * colSpacing, 10.0f, z * rowSpacing);
-			AddCubeToWorld(position, cubeDims, 1.0f);
-		}
-	}
-}
-
 /**
  * @brief 处理对象的选择。
  * @details 每一帧，这段代码都会让你执行一次光线投射，看看光标下是否有物体，如果有，就将其“选择”到一个指针中，以便稍后进行操作。按 Q 键可以在此行为和移动相机之间切换。
@@ -657,31 +427,6 @@ bool TutorialGame::SelectObject() {
 	}
 	return false;
 }
-
-/**
- * @brief 移动当前选定的对象。
- * @details 如果一个对象被点击，可以用鼠标右键推动它，推动的量由滚轮决定。在第一个教程中，这不会做任何事情，因为我们还没有将线性运动添加到我们的物理系统中。在第二个教程之后，物体将以直线移动 - 在第三个教程之后，它们还能够在扭矩下扭转。
- */
-void TutorialGame::MoveSelectedObject() {
-	Debug::Print("Click Force:" + std::to_string(forceMagnitude), Vector2(5, 90));
-	forceMagnitude += Window::GetMouse()->GetWheelMovement() * 100.0f;
-
-	if (!selectionObject) {
-		return;//we haven't selected anything!
-	}
-	//Push the selected object!
-	if (Window::GetMouse()->ButtonPressed(NCL::MouseButtons::Right)) {
-		Ray ray = CollisionDetection::BuildRayFromMouse(world.GetMainCamera());
-
-		RayCollision closestCollision;
-		if (world.Raycast(ray, closestCollision, true)) {
-			if (closestCollision.node == selectionObject) {
-				selectionObject->GetPhysicsObject()->AddForceAtPosition(ray.GetDirection() * forceMagnitude, closestCollision.collidedAt);
-			}
-		}
-	}
-}
-
 /**
  * @brief 处理锁定对象的移动逻辑。
  */
@@ -765,23 +510,18 @@ void TutorialGame::HandlePlayerMovement(float dt) {
 	if (!phys) {
 		return;
 	}
-
 	// Ground check via short raycast downward
 	bool grounded = IsPlayerGrounded();
-
 	Matrix4 view = world.GetMainCamera().BuildViewMatrix();
 	Matrix4 camWorld = Matrix::Inverse(view);
-
 	Vector3 rightAxis = Vector3(camWorld.GetColumn(0));
 	Vector3 fwdAxis = Vector::Cross(Vector3(0, 1, 0), rightAxis);
 	rightAxis.y = 0.0f;
 	fwdAxis.y = 0.0f;
 	rightAxis = Vector::Normalise(rightAxis);
 	fwdAxis = Vector::Normalise(fwdAxis);
-
 	Vector3 moveDir;
 	auto* keyboard = Window::GetKeyboard();
-
 	if (keyboard->KeyDown(KeyCodes::W)) {
 		moveDir += fwdAxis;
 	}
@@ -794,17 +534,14 @@ void TutorialGame::HandlePlayerMovement(float dt) {
 	if (keyboard->KeyDown(KeyCodes::D)) {
 		moveDir += rightAxis;
 	}
-
 	if (Vector::LengthSquared(moveDir) > 0.0f) {
 		moveDir = Vector::Normalise(moveDir);
 		phys->AddForce(moveDir * playerMoveForce);
 	}
-
 	// Jump only when grounded
 	if (grounded && keyboard->KeyPressed(KeyCodes::SPACE)) {
 		phys->ApplyLinearImpulse(Vector3(0, playerJumpImpulse, 0));
 	}
-
 	Vector3 velocity = phys->GetLinearVelocity();
 	// Apply planar friction
 	Vector3 horizVel = Vector3(velocity.x, 0.0f, velocity.z);
@@ -816,7 +553,6 @@ void TutorialGame::HandlePlayerMovement(float dt) {
 		velocity.x = horizVel.x;
 		velocity.z = horizVel.z;
 	}
-
 	float speed = Vector::Length(velocity);
 	if (speed > playerMaxSpeed && speed > 0.0f) {
 		phys->SetLinearVelocity(Vector::Normalise(velocity) * playerMaxSpeed);
@@ -1099,4 +835,70 @@ void TutorialGame::UpdateEnemyAI(float dt) {
 	if (after != before) {
 		OnEnemyStateChanged(after);
 	}
+}
+GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
+	Vector3 floorSize = Vector3(30, 1, 30);
+	return AddCubeToWorld(position, floorSize, 0.0f);
+}
+
+GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
+	return AddSphereToWorld(position,1.0f,0.5f,catMesh,&notexMaterial);
+}
+GameObject* TutorialGame::AddEnemyToWorld(const Vector3& position) {
+	float meshSize = 2.0f;
+	Vector3 halfDims = Vector3(1,1,1) * meshSize;
+	return AddCubeToWorld(position,halfDims,0.5f,enemyMesh,&notexMaterial);
+}
+GameObject* TutorialGame::AddCoinToWorld(const Vector3& position) {
+	float meshSize = 0.05f;
+	Vector3 halfDims = Vector3(1, 1, 1) * meshSize;
+	return AddCubeToWorld(position, halfDims, 0.5f, coinMesh, &notexMaterial);
+}
+
+void TutorialGame::BuildSlopeScene() {
+	AddFloorToWorld(Vector3(0, 0, 50)); //地板
+	AddCoinToWorld(Vector3(0, 0, 50)); //地板
+	// High platform for spawn
+	Vector3 platformHalfSize = Vector3(12.0f, 2.0f, 12.0f);
+	Vector3 platformPos = Vector3(0.0f, 12.0f, -30.0f);
+	AddCubeToWorld(platformPos, platformHalfSize, 0.0f);
+
+	// Slope connecting platform to ground
+	Vector3 slopeHalfSize = Vector3(8.0f, 1.0f, 15.0f);
+	Vector3 slopePos = Vector3(0.0f, 7.0f, -5.0f);
+	Quaternion slopeRot = Quaternion::AxisAngleToQuaterion(Vector3(1, 0, 0), 25.0f);
+	AddOBBCubeToWorld(slopePos, slopeHalfSize, slopeRot, 0.0f); //斜坡
+
+	// Pushable cube on the platform center
+	pushableCube = AddSphereToWorld(platformPos + Vector3(0.0f, platformHalfSize.y + pushCubeHalfSize.y, 0.0f),1.0f , 1.0f);
+
+	// Pressure plate at ramp bottom
+	Vector3 platePos = Vector3(-1.0f, 1.0f, 12.0f);
+	pressurePlate = AddOBBCubeToWorld(platePos, plateHalfSize, Quaternion::AxisAngleToQuaterion(Vector3(0, 1, 0), 0.0f), 0.0f);
+	if (pressurePlate && pressurePlate->GetRenderObject()) {
+		pressurePlate->GetRenderObject()->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f));
+	}
+
+	// Gate mechanism in front of plate	
+	Vector3 gateCenter = Vector3(0.0f, gateHalfSize.y, 20.0f);
+	float gateGap = 0.5f;
+	float gateOffset = gateHalfSize.x + gateGap * 0.5f;
+	gateLeftClosedPos = gateCenter + Vector3(-gateOffset, 0.0f, 0.0f);
+	gateRightClosedPos = gateCenter + Vector3(gateOffset, 0.0f, 0.0f);
+	gateLeftOpenPos = gateLeftClosedPos + Vector3(-gateSlideDistance, 0.0f, 0.0f);
+	gateRightOpenPos = gateRightClosedPos + Vector3(gateSlideDistance, 0.0f, 0.0f);
+
+	gateLeftObject = AddCubeToWorld(gateLeftClosedPos, gateHalfSize, 0.0f);
+	gateRightObject = AddCubeToWorld(gateRightClosedPos, gateHalfSize, 0.0f);
+	if (gateLeftObject && gateLeftObject->GetRenderObject()) {
+		gateLeftObject->GetRenderObject()->SetColour(Vector4(0.2f, 0.2f, 0.8f, 1.0f));
+	}
+	if (gateRightObject && gateRightObject->GetRenderObject()) {
+		gateRightObject->GetRenderObject()->SetColour(Vector4(0.2f, 0.2f, 0.8f, 1.0f));
+	}
+
+	// Spawn player on the platform
+	float spawnOffsetY = platformHalfSize.y + playerRadius + 4.5f;
+	playerObject = AddPlayerToWorld(platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f));
+	InitEnemyAgent(Vector3(40.0f, 5.5f, 5.0f));
 }

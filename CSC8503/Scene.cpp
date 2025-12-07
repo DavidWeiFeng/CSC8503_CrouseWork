@@ -1,3 +1,14 @@
+#include <map>
+#include <vector>
+#include <string>
+#include <functional>
+#include <algorithm>
+#include <cmath>
+
+#include "Vector.h"
+#include "Matrix.h"
+#include "Quaternion.h"
+
 #include "TutorialGame.h"
 #include "GameWorld.h"
 #include "PhysicsSystem.h"
@@ -22,5 +33,3 @@
 
 #include "Ray.h"
 #include "OBBVolume.h"
-#include <algorithm>
-#include <cmath>
