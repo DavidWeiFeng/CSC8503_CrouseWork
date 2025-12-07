@@ -152,6 +152,7 @@ void TutorialGame::UpdateGame(float dt) {
 		Vector3 pp = playerObject->GetTransform().GetPosition();
 		Debug::Print("Player: " + std::to_string(pp.x) + "," + std::to_string(pp.y) + "," + std::to_string(pp.z), Vector2(5, 75), Debug::WHITE);
 	}
+	Debug::Print("Score: " + std::to_string(playerScore), Vector2(80, 95), Debug::WHITE);
 	HandleGrab();
 	HandlePlayerMovement(dt); // 处理玩家输入移动	
 	UpdateGateAndPlate(dt);   // 更新压力板与大门
@@ -199,6 +200,7 @@ void TutorialGame::UpdateThirdPersonCamera(float dt) {
 
 void TutorialGame::LateUpdate(float dt) {
 	(void)dt;
+	UpdatePendingRemovals(dt);
 	UpdateThirdPersonCamera(0.0f);
 }
 
@@ -218,9 +220,15 @@ void TutorialGame::InitCamera() {
  * @brief 初始化游戏世界，清除旧对象并创建新场景。
  */
 void TutorialGame::InitWorld() {
+	// force delete any pending objects before clearing
+	for (auto& p : pendingRemoval) {
+		delete p.obj;
+	}
+	pendingRemoval.clear();
 	world.ClearAndErase();
 	physics.Clear();
 	playerObject = nullptr;
+	playerScore = 0;
 	selectionObject = nullptr;
 	pushableCube = nullptr;
 	pressurePlate = nullptr;
@@ -248,8 +256,9 @@ GameObject* TutorialGame::AddSphereToWorld(const Vector3& position,
 	float radius,
 	float inverseMass,
 	Rendering::Mesh* mesh,
-	const GameTechMaterial* material) {
-	GameObject* sphere = new GameObject();
+	const GameTechMaterial* material,
+	const std::string& name) {
+	GameObject* sphere = new GameObject(name);
 
 	Vector3 sphereSize = Vector3(radius, radius, radius);
 	SphereVolume* volume = new SphereVolume(radius);
@@ -678,7 +687,18 @@ GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
 }
 
 GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
-	return AddSphereToWorld(position,1.0f,0.5f,catMesh,&notexMaterial);
+	PlayerObject* player = new PlayerObject(*this, "Player");
+	float radius = 1.0f;
+	Vector3 sphereSize = Vector3(radius, radius, radius);
+	SphereVolume* volume = new SphereVolume(radius);
+	player->SetBoundingVolume(volume);
+	player->GetTransform().SetScale(sphereSize).SetPosition(position);
+	player->SetRenderObject(new RenderObject(player->GetTransform(), catMesh, notexMaterial));
+	player->SetPhysicsObject(new PhysicsObject(player->GetTransform(), player->GetBoundingVolume()));
+	player->GetPhysicsObject()->SetInverseMass(0.5f);
+	player->GetPhysicsObject()->InitSphereInertia();
+	world.AddGameObject(player);
+	return player;
 }
 GameObject* TutorialGame::AddEnemyToWorld(const Vector3& position) {
 	float meshSize = 2.0f;
@@ -693,7 +713,7 @@ GameObject* TutorialGame::AddCoinToWorld(const Vector3& position) {
 	if (spawn.y < floorTop + radius) {
 		spawn.y = floorTop + radius + 0.05f;
 	}
-	return AddSphereToWorld(spawn, radius, 0.0f, coinMesh, &notexMaterial); // static coin, no gravity
+	return AddSphereToWorld(spawn, radius, 0.0f, coinMesh, &notexMaterial, "Coin"); // static coin, no gravity
 }
 
 void TutorialGame::BuildSlopeScene() {
@@ -743,4 +763,39 @@ void TutorialGame::BuildSlopeScene() {
 	float spawnOffsetY = platformHalfSize.y + playerRadius + 4.5f;
 	playerObject = AddPlayerToWorld(platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f));
 	InitEnemyAgent(Vector3(40.0f, 5.5f, 5.0f));
+}
+
+void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
+	if (!coin) return;
+	playerScore++;
+	// defer removal: first take it out of the world so it stops updating/colliding
+	world.RemoveGameObject(coin, false);
+	if (coin->GetRenderObject()) {
+		coin->GetRenderObject()->SetColour(Vector4(1, 1, 0, 0.4f));
+	}
+	bool alreadyQueued = false;
+	for (auto& p : pendingRemoval) {
+		if (p.obj == coin) {
+			alreadyQueued = true;
+			break;
+		}
+	}
+	if (!alreadyQueued) {
+		// wait a few physics frames to let existing collisions age out
+		pendingRemoval.push_back({ coin, 8 });
+	}
+}
+
+void TutorialGame::UpdatePendingRemovals(float dt) {
+	(void)dt;
+	for (auto it = pendingRemoval.begin(); it != pendingRemoval.end(); ) {
+		it->framesLeft -= 1;
+		if (it->framesLeft <= 0) {
+			delete it->obj;
+			it = pendingRemoval.erase(it);
+		}
+		else {
+			++it;
+		}
+	}
 }

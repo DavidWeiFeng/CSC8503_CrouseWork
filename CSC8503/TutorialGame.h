@@ -5,6 +5,7 @@
 #include "NavigationMesh.h"
 #include "NavigationPath.h"
 #include "EnemyAI.h"
+#include "PlayerObject.h"
 namespace NCL {
 	class Controller;
 
@@ -22,6 +23,7 @@ namespace NCL {
 
 		class TutorialGame {
 		public:
+			friend class PlayerObject;
 			TutorialGame(GameWorld& gameWorld, GameTechRendererInterface& renderer, PhysicsSystem& physics);
 			~TutorialGame();
 
@@ -58,7 +60,7 @@ namespace NCL {
 			void UpdateEnemyAI(float dt);
 
 			GameObject* AddFloorToWorld(const NCL::Maths::Vector3& position);
-			GameObject* AddSphereToWorld(const NCL::Maths::Vector3& position, float radius, float inverseMass = 10.0f, Rendering::Mesh* mesh = nullptr, const GameTechMaterial* material = nullptr);
+			GameObject* AddSphereToWorld(const NCL::Maths::Vector3& position, float radius, float inverseMass = 10.0f, Rendering::Mesh* mesh = nullptr, const GameTechMaterial* material = nullptr, const std::string& name = "");
 			GameObject* AddCubeToWorld(const NCL::Maths::Vector3& position, NCL::Maths::Vector3 dimensions, float inverseMass = 10.0f, Rendering::Mesh* mesh = nullptr, const GameTechMaterial* material = nullptr);
 			GameObject* AddOBBCubeToWorld(const NCL::Maths::Vector3& position, NCL::Maths::Vector3 dimensions, const NCL::Maths::Quaternion& orientation, float inverseMass = 10.0f);
 
@@ -66,12 +68,20 @@ namespace NCL {
 			GameObject* AddEnemyToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddBonusToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddCoinToWorld(const NCL::Maths::Vector3& position);
+			void OnPlayerCollectCoin(GameObject* coin);
+			void UpdatePendingRemovals(float dt);
 
 			GameObject* playerObject = nullptr;
 			GameWorld& world;
 			GameTechRendererInterface& renderer;
 			PhysicsSystem& physics;
 			Controller* controller;
+			int playerScore = 0;
+			struct PendingRemoval {
+				GameObject* obj = nullptr;
+				int framesLeft = 0;
+			};
+			std::vector<PendingRemoval> pendingRemoval;
 
 			bool useGravity;
 			bool inSelectionMode;
