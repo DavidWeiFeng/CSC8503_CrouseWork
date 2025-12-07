@@ -1,6 +1,12 @@
 #pragma once
+#include <vector>
 #include "RenderObject.h"
 #include "PositionConstraint.h"
+#include "NavigationMesh.h"
+#include "NavigationPath.h"
+#include "StateMachine.h"
+#include "StateTransition.h"
+#include "State.h"
 namespace NCL {
 	class Controller;
 
@@ -50,6 +56,14 @@ namespace NCL {
 			void HandlePlayerMovement(float dt);
 			void HandleGrab();
 			bool IsPlayerGrounded() const;
+			void InitEnemyAgent(const NCL::Maths::Vector3& pos);
+			void UpdateEnemyAI(float dt);
+			void UpdateEnemyIdle(float dt);
+			void UpdateEnemyChase(float dt);
+			void UpdateEnemyRecover(float dt);
+			bool BuildEnemyPathToPlayer();
+			void ResetEnemyPath();
+			void OnEnemyStateChanged(NCL::CSC8503::State* newState);
 
 			GameObject* AddFloorToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddSphereToWorld(const NCL::Maths::Vector3& position, float radius, float inverseMass = 10.0f);
@@ -101,6 +115,34 @@ namespace NCL {
 			NCL::Maths::Vector3 pushCubeHalfSize = NCL::Maths::Vector3(0.5f, 0.5f, 0.5f);
 			NCL::Maths::Vector3 plateHalfSize    = NCL::Maths::Vector3(2.0f, 0.2f, 2.0f);
 			NCL::Maths::Vector3 gateHalfSize     = NCL::Maths::Vector3(2.0f, 4.0f, 0.5f);
+			
+			struct EnemyAgent {
+				GameObject* object = nullptr;
+				StateMachine stateMachine;
+				State* idleState = nullptr;
+				State* chaseState = nullptr;
+				State* recoverState = nullptr;
+				std::vector<NCL::Maths::Vector3> path;
+				size_t pathIndex = 0;
+				float pathTimer = 0.0f;
+				float pathRefreshTime = 3.0f;
+				float stuckTimer = 0.0f;
+				float recoverTimer = 0.0f;
+				NCL::Maths::Vector3 lastPos = NCL::Maths::Vector3();
+				NCL::Maths::Vector3 lastPlayerPos = NCL::Maths::Vector3();
+				bool requestRecover = false;
+				bool hasPath = false;
+			};
+			EnemyAgent enemyAgent;
+			NavigationMesh* navMesh = nullptr;
+			float enemyMoveSpeed = 8.0f; // units/sec
+			float enemyWaypointTolerance = 0.5f;
+			float enemyChaseDistance = 80.0f;
+			float enemyLoseDistance = 120.0f;
+			float enemyRepathPlayerDelta = 3.0f;
+			float enemyStuckTime = 1.25f;
+			float enemyStuckMoveEpsilon = 0.05f;
+			float enemyRecoverDuration = 0.6f;
 
 			GameObject* selectionObject = nullptr;
 

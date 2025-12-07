@@ -17,6 +17,7 @@ namespace NCL {
 			void AddTransition(StateTransition* t);
 
 			virtual void Update(float dt); //made it virtual!
+			State* GetActiveState() const { return activeState; }
 
 		protected:
 			State * activeState;

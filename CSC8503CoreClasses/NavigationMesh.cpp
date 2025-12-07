@@ -2,6 +2,8 @@
 #include "Assets.h"
 #include "Maths.h"
 #include <fstream>
+#include <limits>
+#include <algorithm>
 using namespace NCL;
 using namespace CSC8503;
 using namespace std;
@@ -66,9 +68,90 @@ NavigationMesh::~NavigationMesh()
 }
 
 bool NavigationMesh::FindPath(const Vector3& from, const Vector3& to, NavigationPath& outPath) {
-	const NavTri* start	= GetTriForPosition(from);
-	const NavTri* end	= GetTriForPosition(to);
+	outPath.Clear();
 
+	const NavTri* startTri	= GetTriForPosition(from);
+	const NavTri* endTri	= GetTriForPosition(to);
+
+	if (!startTri || !endTri || allTris.empty()) {
+		return false;
+	}
+
+	const int triCount = static_cast<int>(allTris.size());
+	auto triIndex = [&](const NavTri* t) -> int {
+		return static_cast<int>(t - &allTris[0]);
+	};
+
+	const int startIdx = triIndex(startTri);
+	const int endIdx   = triIndex(endTri);
+
+	std::vector<float> g(triCount, std::numeric_limits<float>::infinity());
+	std::vector<float> f(triCount, std::numeric_limits<float>::infinity());
+	std::vector<int> parent(triCount, -1);
+	std::vector<int> openSet;
+	std::vector<bool> inOpen(triCount, false);
+	std::vector<bool> closed(triCount, false);
+
+	auto heuristic = [&](int idx) {
+		return Vector::Length(allTris[idx].centroid - allTris[endIdx].centroid);
+	};
+
+	g[startIdx] = 0.0f;
+	f[startIdx] = heuristic(startIdx);
+	openSet.push_back(startIdx);
+	inOpen[startIdx] = true;
+
+	auto popBest = [&]() -> int {
+		int best = openSet.front();
+		size_t bestPos = 0;
+		for (size_t i = 1; i < openSet.size(); ++i) {
+			int idx = openSet[i];
+			if (f[idx] < f[best]) {
+				best = idx;
+				bestPos = i;
+			}
+		}
+		openSet.erase(openSet.begin() + bestPos);
+		inOpen[best] = false;
+		return best;
+	};
+
+	while (!openSet.empty()) {
+		int current = popBest();
+		if (current == endIdx) {
+			std::vector<int> pathIdx;
+			for (int n = endIdx; n != -1; n = parent[n]) {
+				pathIdx.push_back(n);
+			}
+			for (int idx : pathIdx) {
+				outPath.PushWaypoint(allTris[idx].centroid);
+			}
+			return true;
+		}
+		closed[current] = true;
+
+		for (int i = 0; i < 3; ++i) {
+			NavTri* neigh = allTris[current].neighbours[i];
+			if (!neigh) {
+				continue;
+			}
+			int ni = triIndex(neigh);
+			if (closed[ni]) {
+				continue;
+			}
+			float edgeCost = Vector::Length(allTris[current].centroid - neigh->centroid);
+			float tentativeG = g[current] + edgeCost;
+			if (tentativeG < g[ni]) {
+				parent[ni] = current;
+				g[ni] = tentativeG;
+				f[ni] = tentativeG + heuristic(ni);
+				if (!inOpen[ni]) {
+					openSet.push_back(ni);
+					inOpen[ni] = true;
+				}
+			}
+		}
+	}
 	return false;
 }
 
