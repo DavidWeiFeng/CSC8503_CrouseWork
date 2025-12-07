@@ -70,6 +70,8 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 
 	glassMaterial.type			= MaterialType::Transparent;
 	glassMaterial.diffuseTex	= glassTex;
+	notexMaterial.type          = MaterialType::Opaque;
+	notexMaterial.diffuseTex    = defaultTex ? defaultTex : checkerTex;
 
 	if (!navMesh) {
 		navMesh = new NavigationMesh("test.navmesh");
@@ -837,7 +839,7 @@ void TutorialGame::UpdateEnemyAI(float dt) {
 	}
 }
 GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
-	Vector3 floorSize = Vector3(30, 1, 30);
+	Vector3 floorSize = Vector3(30, 0.5f, 30);
 	return AddCubeToWorld(position, floorSize, 0.0f);
 }
 
@@ -850,14 +852,20 @@ GameObject* TutorialGame::AddEnemyToWorld(const Vector3& position) {
 	return AddCubeToWorld(position,halfDims,0.5f,enemyMesh,&notexMaterial);
 }
 GameObject* TutorialGame::AddCoinToWorld(const Vector3& position) {
-	float meshSize = 0.05f;
-	Vector3 halfDims = Vector3(1, 1, 1) * meshSize;
-	return AddCubeToWorld(position, halfDims, 0.5f, coinMesh, &notexMaterial);
+	float radius = 0.20f; // sphere half height = radius
+	Vector3 spawn = position;
+	// Ensure it rests on default floor (half-height 1.0) instead of embedding
+	float floorTop = 1.2f;
+	if (spawn.y < floorTop + radius) {
+		spawn.y = floorTop + radius + 0.05f;
+	}
+	return AddSphereToWorld(spawn, radius, 0.0f, coinMesh, &notexMaterial); // static coin, no gravity
 }
 
 void TutorialGame::BuildSlopeScene() {
 	AddFloorToWorld(Vector3(0, 0, 50)); //地板
-	AddCoinToWorld(Vector3(0, 0, 50)); //地板
+	// 放在地板上方，半径 0.25，高度余量 0.05
+	AddCoinToWorld(Vector3(0, 1.3f, 40)); 
 	// High platform for spawn
 	Vector3 platformHalfSize = Vector3(12.0f, 2.0f, 12.0f);
 	Vector3 platformPos = Vector3(0.0f, 12.0f, -30.0f);
