@@ -102,6 +102,8 @@ bool TutorialGame::IsPlayerGrounded() const {
  * @brief 教程游戏的析构函数。
  */
 TutorialGame::~TutorialGame()	{
+	delete enemyAI;
+	enemyAI = nullptr;
 	delete navMesh;
 	navMesh = nullptr;
 }
@@ -226,7 +228,11 @@ void TutorialGame::InitWorld() {
 	gateRightObject = nullptr;
 	gateOpen = false;
 	gateAnimT = 0.0f;
-	enemyAgent = EnemyAgent();
+	if (enemyAI) {
+		delete enemyAI;
+		enemyAI = nullptr;
+	}
+	enemyObject = nullptr;
 	physics.UseGravity(true);
 	BuildSlopeScene();
 }
@@ -634,209 +640,37 @@ void TutorialGame::HandleGrab() {
 }
 
 void TutorialGame::InitEnemyAgent(const Vector3& pos) {
-	if (enemyAgent.object) {
+	if (enemyObject) {
 		return;
 	}
-	enemyAgent.object = AddEnemyToWorld(pos);
-	enemyAgent.lastPos = pos;
-	enemyAgent.lastPlayerPos = pos;
-	enemyAgent.idleState = new State([this](float dt) { UpdateEnemyIdle(dt); });
-	enemyAgent.chaseState = new State([this](float dt) { UpdateEnemyChase(dt); });
-	enemyAgent.recoverState = new State([this](float dt) { UpdateEnemyRecover(dt); });
-	enemyAgent.stateMachine.AddState(enemyAgent.idleState);
-	enemyAgent.stateMachine.AddState(enemyAgent.chaseState);
-	enemyAgent.stateMachine.AddState(enemyAgent.recoverState);
-	enemyAgent.stateMachine.AddTransition(new StateTransition(enemyAgent.idleState, enemyAgent.chaseState, [this]() {
-		if (!playerObject || !enemyAgent.object) {
-			return false;
-		}
-		float dist = Vector::Length(playerObject->GetTransform().GetPosition() - enemyAgent.object->GetTransform().GetPosition());
-		return dist < enemyChaseDistance;
-	}));
-	enemyAgent.stateMachine.AddTransition(new StateTransition(enemyAgent.chaseState, enemyAgent.idleState, [this]() {
-		if (!playerObject || !enemyAgent.object) {
-			return true;
-		}
-		float dist = Vector::Length(playerObject->GetTransform().GetPosition() - enemyAgent.object->GetTransform().GetPosition());
-		return dist > enemyLoseDistance;
-	}));
-	enemyAgent.stateMachine.AddTransition(new StateTransition(enemyAgent.chaseState, enemyAgent.recoverState, [this]() {
-		return enemyAgent.requestRecover;
-	}));
-	enemyAgent.stateMachine.AddTransition(new StateTransition(enemyAgent.recoverState, enemyAgent.chaseState, [this]() {
-		if (!playerObject || !enemyAgent.object) {
-			return false;
-		}
-		float dist = Vector::Length(playerObject->GetTransform().GetPosition() - enemyAgent.object->GetTransform().GetPosition());
-		return enemyAgent.recoverTimer >= enemyRecoverDuration && dist < enemyLoseDistance;
-	}));
-	enemyAgent.stateMachine.AddTransition(new StateTransition(enemyAgent.recoverState, enemyAgent.idleState, [this]() {
-		if (!playerObject || !enemyAgent.object) {
-			return enemyAgent.recoverTimer >= enemyRecoverDuration;
-		}
-		float dist = Vector::Length(playerObject->GetTransform().GetPosition() - enemyAgent.object->GetTransform().GetPosition());
-		return enemyAgent.recoverTimer >= enemyRecoverDuration && dist >= enemyLoseDistance;
-	}));
-	OnEnemyStateChanged(enemyAgent.stateMachine.GetActiveState());
-}
-
-void TutorialGame::ResetEnemyPath() {
-	enemyAgent.path.clear();
-	enemyAgent.pathIndex = 0;
-	enemyAgent.hasPath = false;
-	enemyAgent.pathTimer = 0.0f;
-}
-
-bool TutorialGame::BuildEnemyPathToPlayer() {
-	if (!navMesh || !enemyAgent.object || !playerObject) {
-		return false;
+	enemyObject = AddEnemyToWorld(pos);
+	if (enemyAI) {
+		delete enemyAI;
+		enemyAI = nullptr;
 	}
-	NavigationPath newPath;
-	Vector3 from = enemyAgent.object->GetTransform().GetPosition();
-	Vector3 to = playerObject->GetTransform().GetPosition();
-	if (!navMesh->FindPath(from, to, newPath)) {
-		enemyAgent.hasPath = false;
-		return false;
-	}
-	enemyAgent.path.clear();
-	Vector3 waypoint;
-	while (newPath.PopWaypoint(waypoint)) {
-		enemyAgent.path.emplace_back(waypoint);
-	}
-	if (enemyAgent.path.size() > 1) {
-		enemyAgent.pathIndex = 1; // skip start node (at enemy position), go to next
-	} else {
-		enemyAgent.pathIndex = 0;
-	}
-	enemyAgent.hasPath = !enemyAgent.path.empty();
-	enemyAgent.pathTimer = 0.0f;
-	enemyAgent.lastPlayerPos = playerObject->GetTransform().GetPosition();
-	return enemyAgent.hasPath;
-}
-
-void TutorialGame::OnEnemyStateChanged(State* newState) {
-	if (newState == enemyAgent.recoverState) {
-		enemyAgent.recoverTimer = 0.0f;
-		enemyAgent.requestRecover = false;
-		ResetEnemyPath();
-	}
-	if (newState == enemyAgent.idleState) {
-		enemyAgent.recoverTimer = 0.0f;
-		enemyAgent.requestRecover = false;
-		ResetEnemyPath();
-	}
-	if (newState == enemyAgent.chaseState) {
-		enemyAgent.recoverTimer = 0.0f;
-		enemyAgent.requestRecover = false;
-		enemyAgent.stuckTimer = 0.0f;
-		if (!enemyAgent.hasPath) {
-			BuildEnemyPathToPlayer();
-		}
-	}
-}
-
-void TutorialGame::UpdateEnemyIdle(float dt) {
-	(void)dt;
-	if (!enemyAgent.object) {
-		return;
-	}
-	enemyAgent.requestRecover = false;
-	ResetEnemyPath();
-}
-
-void TutorialGame::UpdateEnemyChase(float dt) {
-	if (!enemyAgent.object || !playerObject) {
-		return;
-	}
-	enemyAgent.pathTimer += dt;
-	Vector3 playerPos = playerObject->GetTransform().GetPosition();
-	if (!enemyAgent.hasPath || enemyAgent.pathTimer >= enemyAgent.pathRefreshTime ||
-		Vector::Length(playerPos - enemyAgent.lastPlayerPos) > enemyRepathPlayerDelta) {
-		if (!BuildEnemyPathToPlayer()) {
-			enemyAgent.requestRecover = true;
-			return;
-		}
-	}
-	PhysicsObject* phys = enemyAgent.object->GetPhysicsObject();
-	if (!phys) {
-		return;
-	}
-	Vector3 pos = enemyAgent.object->GetTransform().GetPosition();
-	Vector3 target = playerPos;
-	if (enemyAgent.pathIndex < enemyAgent.path.size()) {
-		target = enemyAgent.path[enemyAgent.pathIndex];
-	}
-	Vector3 toTarget = target - pos;
-	toTarget.y = 0.0f; // navmesh is flat on floor; prevent flying toward elevated targets
-	float dist = Vector::Length(toTarget);
-	if (dist < enemyWaypointTolerance && enemyAgent.pathIndex + 1 < enemyAgent.path.size()) {
-		enemyAgent.pathIndex++;
-		target = enemyAgent.path[enemyAgent.pathIndex];
-		toTarget = target - pos;
-		toTarget.y = 0.0f;
-	}
-	if (Vector::LengthSquared(toTarget) > 1e-4f) {
-		Vector3 dir = Vector::Normalise(toTarget);
-		float step = enemyMoveSpeed * dt;
-		Vector3 newPos = pos + dir * step;
-		// Clamp to target if overshoot
-		if (Vector::Length(newPos - pos) > dist) {
-			newPos = target;
-		}
-		enemyAgent.object->GetTransform().SetPosition(newPos);
-		phys->SetLinearVelocity(Vector3());
-	}
-	float moved = Vector::Length(pos - enemyAgent.lastPos);
-	if (moved < enemyStuckMoveEpsilon) {
-		enemyAgent.stuckTimer += dt;
-		if (enemyAgent.stuckTimer > enemyStuckTime) {
-			enemyAgent.requestRecover = true;
-		}
-	}
-	else {
-		enemyAgent.stuckTimer = 0.0f;
-		enemyAgent.lastPos = pos;
-	}
-	// Debug draw path
-	if (enemyAgent.pathIndex < enemyAgent.path.size()) {
-		Vector3 prev = pos;
-		for (size_t i = enemyAgent.pathIndex; i < enemyAgent.path.size(); ++i) {
-			Vector3 wp = enemyAgent.path[i];
-			Debug::DrawLine(prev, wp, Vector4(1, 0, 0, 1));
-			Debug::DrawLine(wp, wp + Vector3(0, 0.5f, 0), Vector4(0, 1, 0, 1)); // small marker
-			prev = wp;
-		}
-		Debug::Print("Enemy path len: " + std::to_string(enemyAgent.path.size() - enemyAgent.pathIndex), Vector2(5, 70), Debug::RED);
-	}
-}
-
-void TutorialGame::UpdateEnemyRecover(float dt) {
-	if (!enemyAgent.object) {
-		return;
-	}
-	enemyAgent.recoverTimer += dt;
-	enemyAgent.requestRecover = false;
-	PhysicsObject* phys = enemyAgent.object->GetPhysicsObject();
-	if (phys) {
-		Vector3 vel = phys->GetLinearVelocity();
-		vel *= 0.9f;
-		phys->SetLinearVelocity(vel);
-	}
-	if (!enemyAgent.hasPath && enemyAgent.recoverTimer > enemyRecoverDuration * 0.5f) {
-		BuildEnemyPathToPlayer();
+	if (navMesh) {
+		EnemyAI::Params params;
+		params.moveSpeed = 8.0f;
+		params.waypointTolerance = 0.5f;
+		params.chaseDistance = 80.0f;
+		params.loseDistance = 120.0f;
+		params.repathPlayerDelta = 3.0f;
+		params.stuckTime = 1.25f;
+		params.stuckMoveEpsilon = 0.05f;
+		params.recoverDuration = 0.6f;
+		params.pathRefreshTime = 1.0f;
+		enemyAI = new EnemyAI(*navMesh, params);
+		enemyAI->SetOwner(enemyObject);
+		enemyAI->SetTarget(playerObject);
 	}
 }
 
 void TutorialGame::UpdateEnemyAI(float dt) {
-	if (!enemyAgent.object || !playerObject || !navMesh) {
+	if (!enemyAI || !navMesh || !enemyObject || !playerObject) {
 		return;
 	}
-	State* before = enemyAgent.stateMachine.GetActiveState();
-	enemyAgent.stateMachine.Update(dt);
-	State* after = enemyAgent.stateMachine.GetActiveState();
-	if (after != before) {
-		OnEnemyStateChanged(after);
-	}
+	enemyAI->SetTarget(playerObject);
+	enemyAI->Update(dt);
 }
 GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
 	Vector3 floorSize = Vector3(30, 0.5f, 30);
