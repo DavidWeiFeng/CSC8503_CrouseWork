@@ -961,25 +961,9 @@ bool TutorialGame::BuildEnemyPathToPlayer() {
 	while (newPath.PopWaypoint(waypoint)) {
 		enemyAgent.path.emplace_back(waypoint);
 	}
-	// Start from the closest waypoint to current position to avoid lingering on the first node
-	if (!enemyAgent.path.empty()) {
-		Vector3 pos = enemyAgent.object->GetTransform().GetPosition();
-		size_t closest = 0;
-		float bestDist = std::numeric_limits<float>::infinity();
-		for (size_t i = 0; i < enemyAgent.path.size(); ++i) {
-			float d = Vector::Length(enemyAgent.path[i] - pos);
-			if (d < bestDist) {
-				bestDist = d;
-				closest = i;
-			}
-		}
-		enemyAgent.pathIndex = closest;
-		if (enemyAgent.pathIndex + 1 < enemyAgent.path.size() &&
-			bestDist < enemyWaypointTolerance * 1.5f) {
-			enemyAgent.pathIndex++; // skip the node we're already on top of
-		}
-	}
-	else {
+	if (enemyAgent.path.size() > 1) {
+		enemyAgent.pathIndex = 1; // skip start node (at enemy position), go to next
+	} else {
 		enemyAgent.pathIndex = 0;
 	}
 	enemyAgent.hasPath = !enemyAgent.path.empty();

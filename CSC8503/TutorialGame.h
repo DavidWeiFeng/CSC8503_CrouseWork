@@ -125,7 +125,7 @@ namespace NCL {
 				std::vector<NCL::Maths::Vector3> path;
 				size_t pathIndex = 0;
 				float pathTimer = 0.0f;
-				float pathRefreshTime = 3.0f;
+				float pathRefreshTime = 1.0f;
 				float stuckTimer = 0.0f;
 				float recoverTimer = 0.0f;
 				NCL::Maths::Vector3 lastPos = NCL::Maths::Vector3();
