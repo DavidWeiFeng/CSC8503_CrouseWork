@@ -68,7 +68,9 @@ namespace NCL {
 			GameObject* AddEnemyToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddBonusToWorld(const NCL::Maths::Vector3& position);
 			GameObject* AddCoinToWorld(const NCL::Maths::Vector3& position);
+			GameObject* BuildSphereObject(GameObject* obj, const NCL::Maths::Vector3& position, float radius, float inverseMass, Rendering::Mesh* mesh = nullptr, const GameTechMaterial* material = nullptr);
 			void OnPlayerCollectCoin(GameObject* coin);
+			void OnPlayerCaught();
 			void UpdatePendingRemovals(float dt);
 
 			GameObject* playerObject = nullptr;
@@ -110,6 +112,9 @@ namespace NCL {
 			GameObject* gateRightObject = nullptr;
 			bool gateOpen = false;
 			float gateAnimT = 0.0f;
+			NCL::Maths::Vector3 floorCenter = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 floorHalfSize = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 playerSpawnPos = NCL::Maths::Vector3();
 			float gateSlideDistance = 6.0f;
 			NCL::Maths::Vector3 gateLeftClosedPos  = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 gateRightClosedPos = NCL::Maths::Vector3();

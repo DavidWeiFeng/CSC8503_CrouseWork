@@ -1,6 +1,7 @@
 #include "EnemyAI.h"
 #include "Debug.h"
 #include "PhysicsObject.h"
+#include <random>
 
 using namespace NCL;
 using namespace CSC8503;
@@ -24,16 +25,24 @@ void EnemyAI::SetTarget(GameObject* t) {
 	}
 }
 
+void EnemyAI::SetPatrolPoints(const std::vector<Vector3>& points) {
+	patrolPoints = points;
+	if (!patrolPoints.empty()) {
+		patrolIndex = 0;
+	}
+}
+
 void EnemyAI::Reset() {
 	requestRecover = false;
 	recoverTimer = 0.0f;
 	stuckTimer = 0.0f;
 	pathTimer = 0.0f;
+	patrolTargetTimer = 0.0f;
 	ResetPath();
 }
 
 void EnemyAI::InitStates() {
-	idleState    = new State([this](float dt) { UpdateIdle(dt); });
+	idleState    = new State([this](float dt) { UpdatePatrol(dt); });
 	chaseState   = new State([this](float dt) { UpdateChase(dt); });
 	recoverState = new State([this](float dt) { UpdateRecover(dt); });
 
@@ -43,11 +52,13 @@ void EnemyAI::InitStates() {
 
 	stateMachine.AddTransition(new StateTransition(idleState, chaseState, [this]() {
 		if (!owner || !target) return false;
+		if (!IsTargetOnFloor()) return false;
 		float dist = Vector::Length(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
 		return dist < params.chaseDistance;
 	}));
 	stateMachine.AddTransition(new StateTransition(chaseState, idleState, [this]() {
 		if (!owner || !target) return true;
+		if (!IsTargetOnFloor()) return true;
 		float dist = Vector::Length(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
 		return dist > params.loseDistance;
 	}));
@@ -89,13 +100,11 @@ void EnemyAI::ResetPath() {
 	pathTimer = 0.0f;
 }
 
-bool EnemyAI::BuildPath() {
-	if (!owner || !target) {
-		return false;
-	}
+bool EnemyAI::BuildPathTo(const Vector3& dest) {
+	if (!owner) return false;
 	NavigationPath navPath;
 	Vector3 from = owner->GetTransform().GetPosition();
-	Vector3 to = target->GetTransform().GetPosition();
+	Vector3 to = dest;
 	if (!navMesh.FindPath(from, to, navPath)) {
 		hasPath = false;
 		return false;
@@ -112,8 +121,15 @@ bool EnemyAI::BuildPath() {
 	}
 	hasPath = !path.empty();
 	pathTimer = 0.0f;
-	lastTargetPos = target->GetTransform().GetPosition();
 	return hasPath;
+}
+
+bool EnemyAI::BuildPath() {
+	if (!owner || !target) {
+		return false;
+	}
+	lastTargetPos = target->GetTransform().GetPosition();
+	return BuildPathTo(lastTargetPos);
 }
 
 void EnemyAI::Update(float dt) {
@@ -132,6 +148,71 @@ void EnemyAI::UpdateIdle(float dt) {
 	(void)dt;
 	requestRecover = false;
 	ResetPath();
+}
+
+void EnemyAI::UpdatePatrol(float dt) {
+	requestRecover = false;
+	if (!owner) {
+		ResetPath();
+		return;
+	}
+	Vector3 targetPatrol;
+	// Prefer explicit patrol points if provided
+	if (!patrolPoints.empty()) {
+		targetPatrol = patrolPoints[patrolIndex];
+	} else {
+		// random wander within floor bounds
+		if (patrolTargetTimer <= 0.0f || pathIndex >= path.size() || !hasPath) {
+			currentPatrolTarget = ChoosePatrolTarget();
+			patrolTargetTimer = 3.0f; // refresh every few seconds
+			ResetPath();
+		}
+		targetPatrol = currentPatrolTarget;
+	}
+	if (!hasPath || pathIndex >= path.size()) {
+		if (!BuildPathTo(targetPatrol)) {
+			if (!patrolPoints.empty()) {
+				patrolIndex = (patrolIndex + 1) % patrolPoints.size();
+			}
+			currentPatrolTarget = ChoosePatrolTarget();
+			BuildPathTo(currentPatrolTarget);
+		}
+	}
+	patrolTargetTimer -= dt;
+	Vector3 pos = owner->GetTransform().GetPosition();
+	if (pathIndex < path.size()) {
+		Vector3 seek = path[pathIndex];
+		Vector3 toTarget = seek - pos;
+		toTarget.y = 0.0f;
+		float dist = Vector::Length(toTarget);
+		if (dist < params.waypointTolerance && pathIndex + 1 < path.size()) {
+			pathIndex++;
+			return;
+		}
+		if (Vector::LengthSquared(toTarget) > 1e-4f) {
+			Vector3 dir = Vector::Normalise(toTarget);
+			float step = params.moveSpeed * dt;
+			Vector3 newPos = pos + dir * step;
+			if (Vector::Length(newPos - pos) > dist) {
+				newPos = seek;
+			}
+			owner->GetTransform().SetPosition(newPos);
+			if (auto* phys = owner->GetPhysicsObject()) {
+				phys->SetLinearVelocity(Vector3());
+			}
+		}
+	}
+	// Advance patrol target when close
+	if (Vector::Length(targetPatrol - pos) < params.waypointTolerance * 1.5f || patrolTargetTimer <= 0.0f) {
+		if (!patrolPoints.empty()) {
+			patrolIndex = (patrolIndex + 1) % patrolPoints.size();
+			ResetPath();
+		} else {
+			currentPatrolTarget = ChoosePatrolTarget();
+			patrolTargetTimer = 3.0f;
+			ResetPath();
+		}
+	}
 }
 
 void EnemyAI::UpdateChase(float dt) {
@@ -176,6 +257,15 @@ void EnemyAI::UpdateChase(float dt) {
 		owner->GetTransform().SetPosition(newPos);
 		phys->SetLinearVelocity(Vector3());
 	}
+	// Catch player based on planar distance to player (ignore height)
+	Vector3 planar = targetPos - owner->GetTransform().GetPosition();
+	planar.y = 0.0f;
+	float targetDist = Vector::Length(planar);
+	if (targetDist < params.catchDistance && onCatch) {
+		onCatch();
+		requestRecover = true;
+		return;
+	}
 	float moved = Vector::Length(pos - lastPos);
 	if (moved < params.stuckMoveEpsilon) {
 		stuckTimer += dt;
@@ -214,4 +304,24 @@ void EnemyAI::UpdateRecover(float dt) {
 	if (!hasPath && recoverTimer > params.recoverDuration * 0.5f) {
 		BuildPath();
 	}
+}
+
+bool EnemyAI::IsTargetOnFloor() const {
+	if (!target) return false;
+	Vector3 p = target->GetTransform().GetPosition();
+	return (p.x >= params.floorMin.x && p.x <= params.floorMax.x) &&
+		(p.y >= params.floorMin.y && p.y <= params.floorMax.y) &&
+		(p.z >= params.floorMin.z && p.z <= params.floorMax.z);
+}
+
+Vector3 EnemyAI::ChoosePatrolTarget() {
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_real_distribution<float> distX(params.floorMin.x, params.floorMax.x);
+	std::uniform_real_distribution<float> distZ(params.floorMin.z, params.floorMax.z);
+	float x = distX(gen);
+	float z = distZ(gen);
+	// stay near floor height
+	float y = (params.floorMin.y + params.floorMax.y) * 0.5f;
+	return Vector3(x, y, z);
 }

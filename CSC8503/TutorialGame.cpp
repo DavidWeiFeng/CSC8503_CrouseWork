@@ -252,32 +252,37 @@ void TutorialGame::InitWorld() {
  * @param inverseMass 球体的逆质量。
  * @return 创建的球体游戏对象。
  */
+GameObject* TutorialGame::BuildSphereObject(GameObject* obj, const Vector3& position, float radius, float inverseMass,
+	Rendering::Mesh* mesh,
+	const GameTechMaterial* material) {
+	if (!obj) {
+		obj = new GameObject();
+	}
+	Vector3 sphereSize = Vector3(radius, radius, radius);
+	SphereVolume* volume = new SphereVolume(radius);
+	obj->SetBoundingVolume(volume);
+	obj->GetTransform().SetScale(sphereSize).SetPosition(position);
+	if (!mesh) {
+		mesh = sphereMesh;
+	}
+	const GameTechMaterial& usedMaterial =
+		material ? *material : checkerMaterial;
+	obj->SetRenderObject(new RenderObject(obj->GetTransform(), mesh, usedMaterial));
+	obj->SetPhysicsObject(new PhysicsObject(obj->GetTransform(), obj->GetBoundingVolume()));
+	obj->GetPhysicsObject()->SetInverseMass(inverseMass);
+	obj->GetPhysicsObject()->InitSphereInertia();
+	world.AddGameObject(obj);
+	return obj;
+}
+
 GameObject* TutorialGame::AddSphereToWorld(const Vector3& position,
 	float radius,
 	float inverseMass,
 	Rendering::Mesh* mesh,
 	const GameTechMaterial* material,
 	const std::string& name) {
-	GameObject* sphere = new GameObject(name);
-
-	Vector3 sphereSize = Vector3(radius, radius, radius);
-	SphereVolume* volume = new SphereVolume(radius);
-	sphere->SetBoundingVolume(volume);
-	sphere->GetTransform().SetScale(sphereSize).SetPosition(position);
-	// ---------- 默认资源处理 ----------
-	if (!mesh) {
-		mesh = sphereMesh;   // class 成员变量
-	}
-	const GameTechMaterial& usedMaterial =
-		material ? *material : checkerMaterial;  // class 成员变量
-	sphere->SetRenderObject(new RenderObject(sphere->GetTransform(),mesh,usedMaterial));
-	sphere->SetPhysicsObject(new PhysicsObject(sphere->GetTransform(), sphere->GetBoundingVolume()));
-	sphere->GetPhysicsObject()->SetInverseMass(inverseMass);
-	sphere->GetPhysicsObject()->InitSphereInertia();
-	world.AddGameObject(sphere);
-	return sphere;
+	return BuildSphereObject(new GameObject(name), position, radius, inverseMass, mesh, material);
 }
-
 
 /**
  * @brief 构建一个使用AABB体积的立方体游戏对象。
@@ -668,9 +673,14 @@ void TutorialGame::InitEnemyAgent(const Vector3& pos) {
 		params.stuckMoveEpsilon = 0.05f;
 		params.recoverDuration = 0.6f;
 		params.pathRefreshTime = 1.0f;
+		params.catchDistance = 5.0f;
+		// Define floor bounds (a little above ground to include player feet)
+		params.floorMin = floorCenter - floorHalfSize - Vector3(0, -1.0f, 0);
+		params.floorMax = floorCenter + floorHalfSize + Vector3(0, 2.0f, 0);
 		enemyAI = new EnemyAI(*navMesh, params);
 		enemyAI->SetOwner(enemyObject);
 		enemyAI->SetTarget(playerObject);
+		enemyAI->SetOnCatch([this]() { OnPlayerCaught(); });
 	}
 }
 
@@ -683,22 +693,14 @@ void TutorialGame::UpdateEnemyAI(float dt) {
 }
 GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
 	Vector3 floorSize = Vector3(30, 0.5f, 30);
+	floorCenter = position;
+	floorHalfSize = floorSize;
 	return AddCubeToWorld(position, floorSize, 0.0f);
 }
 
 GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
 	PlayerObject* player = new PlayerObject(*this, "Player");
-	float radius = 1.0f;
-	Vector3 sphereSize = Vector3(radius, radius, radius);
-	SphereVolume* volume = new SphereVolume(radius);
-	player->SetBoundingVolume(volume);
-	player->GetTransform().SetScale(sphereSize).SetPosition(position);
-	player->SetRenderObject(new RenderObject(player->GetTransform(), catMesh, notexMaterial));
-	player->SetPhysicsObject(new PhysicsObject(player->GetTransform(), player->GetBoundingVolume()));
-	player->GetPhysicsObject()->SetInverseMass(0.5f);
-	player->GetPhysicsObject()->InitSphereInertia();
-	world.AddGameObject(player);
-	return player;
+	return BuildSphereObject(player, position, 1.0f, 0.5f, catMesh, &notexMaterial);
 }
 GameObject* TutorialGame::AddEnemyToWorld(const Vector3& position) {
 	float meshSize = 2.0f;
@@ -717,7 +719,8 @@ GameObject* TutorialGame::AddCoinToWorld(const Vector3& position) {
 }
 
 void TutorialGame::BuildSlopeScene() {
-	AddFloorToWorld(Vector3(0, 0, 50)); //地板
+	Vector3 floorPos = Vector3(0, 0, 50);
+	AddFloorToWorld(floorPos); //地板
 	// 放在地板上方，半径 0.25，高度余量 0.05
 	AddCoinToWorld(Vector3(0, 1.3f, 40)); 
 	// High platform for spawn
@@ -761,8 +764,25 @@ void TutorialGame::BuildSlopeScene() {
 
 	// Spawn player on the platform
 	float spawnOffsetY = platformHalfSize.y + playerRadius + 4.5f;
-	playerObject = AddPlayerToWorld(platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f));
-	InitEnemyAgent(Vector3(40.0f, 5.5f, 5.0f));
+	playerSpawnPos = platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f);
+	playerObject = AddPlayerToWorld(playerSpawnPos);
+
+	// Enemy spawn on floor area
+	Vector3 enemySpawn = floorCenter;
+	enemySpawn.y = floorCenter.y + floorHalfSize.y + 2.5f;
+	enemySpawn.x += -floorHalfSize.x * 0.6f;
+	InitEnemyAgent(enemySpawn);
+
+	// Patrol points on floor corners
+	if (enemyAI) {
+		std::vector<Vector3> patrol = {
+			floorCenter + Vector3( floorHalfSize.x * 0.8f, 0.0f,  floorHalfSize.z * 0.8f),
+			floorCenter + Vector3(-floorHalfSize.x * 0.8f, 0.0f,  floorHalfSize.z * 0.8f),
+			floorCenter + Vector3(-floorHalfSize.x * 0.8f, 0.0f, -floorHalfSize.z * 0.8f),
+			floorCenter + Vector3( floorHalfSize.x * 0.8f, 0.0f, -floorHalfSize.z * 0.8f),
+		};
+		enemyAI->SetPatrolPoints(patrol);
+	}
 }
 
 void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
@@ -783,6 +803,21 @@ void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
 	if (!alreadyQueued) {
 		// wait a few physics frames to let existing collisions age out
 		pendingRemoval.push_back({ coin, 8 });
+	}
+}
+
+void TutorialGame::OnPlayerCaught() {
+	playerScore = 0;
+	if (playerObject) {
+		playerObject->GetTransform().SetPosition(playerSpawnPos);
+		if (auto* phys = playerObject->GetPhysicsObject()) {
+			phys->SetLinearVelocity(Vector3());
+			phys->SetAngularVelocity(Vector3());
+		}
+	}
+	// reset enemy pathing after catch
+	if (enemyAI) {
+		enemyAI->Reset();
 	}
 }
 
