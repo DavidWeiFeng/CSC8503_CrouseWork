@@ -72,6 +72,7 @@ namespace NCL {
 			void OnPlayerCollectCoin(GameObject* coin);
 			void OnPlayerCaught();
 			void UpdatePendingRemovals(float dt);
+			void UpdateCoinPickups();
 
 			GameObject* playerObject = nullptr;
 			GameWorld& world;
@@ -162,6 +163,8 @@ namespace NCL {
 			PositionConstraint* grabConstraint = nullptr;
 			NCL::Maths::Vector3 grabLocalOffset = NCL::Maths::Vector3();
 			float grabDistance = 0.0f;
+			std::vector<GameObject*> coins;
+			float coinRadius = 0.2f;
 		};
 	}
 }

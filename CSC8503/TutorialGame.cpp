@@ -18,16 +18,18 @@
 #include "OBBVolume.h"
 #include <algorithm>
 #include <cmath>
+#include <random>
+#include <chrono>
 
 using namespace NCL;
 using namespace CSC8503;
 using namespace NCL::Maths;
 
 /**
- * @brief 构造一个新的教程游戏。
- * @param inWorld 游戏世界。
- * @param inRenderer 游戏渲染器。
- * @param inPhysics 物理系统。
+ * @brief 閺嬪嫰鐘辩存稉閺傛壆娈戦弫娆戔柤濞撳憡鍨欓妴
+ * @param inWorld 濞撳憡鍨欐稉鏍鏅閵
+ * @param inRenderer 濞撳憡鍨欏〒鍙夌厠閸ｃ劊
+ * @param inPhysics 閻椻晝鎮婄化鑽ょ埠閵
  */
 TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRenderer, PhysicsSystem& inPhysics)
 	:	world(inWorld),
@@ -99,7 +101,7 @@ bool TutorialGame::IsPlayerGrounded() const {
 }
 
 /**
- * @brief 教程游戏的析构函数。
+ * @brief 閺佹瑧鈻煎〒鍛婂灆閻ㄥ嫭鐎介弸鍕鍤遍弫鑸
  */
 TutorialGame::~TutorialGame()	{
 	delete enemyAI;
@@ -109,8 +111,8 @@ TutorialGame::~TutorialGame()	{
 }
 
 /**
- * @brief 每帧更新游戏逻辑。
- * @param dt 帧时间增量。
+ * @brief 濮ｅ繐鎶氶弴瀛樻煀濞撳憡鍨欓柅鏄忕帆閵
+ * @param dt 鐢褎妞傞梻鏉戠偤鍣洪妴
  */
 void TutorialGame::UpdateGame(float dt) {
 	float fps = dt > 1e-6f ? 1.0f / dt : 0.0f;
@@ -123,14 +125,14 @@ void TutorialGame::UpdateGame(float dt) {
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F2)) {
 		InitCamera(); //F2 will reset the camera to a specific default place
 	}
-	// 随机化约束顺序 - 减少计算偏差
+	// 闂呭繑婧閸栨牜瀹抽弶鐔笺庢惔 - 閸戝繐鐨鐠侊紕鐣婚崑蹇撴▕
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
 		world.ShuffleConstraints(true);
 	}
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F10)) {
 		world.ShuffleConstraints(false);
 	}
-	// 随机化对象顺序
+	// 闂呭繑婧閸栨牕纭呰杽妞ゅ搫绨
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F7)) {
 		world.ShuffleObjects(true);
 	}
@@ -139,10 +141,10 @@ void TutorialGame::UpdateGame(float dt) {
 	}
 
 	if (lockedObject) {
-		LockedObjectMovement(); // 使用箭头键控制锁定对象
+		LockedObjectMovement(); // 娴ｈ法鏁ょ粻婢舵挳鏁閹貉冨煑闁夸礁鐣剧电呰杽
 	}
 	else {
-		DebugObjectMovement();  // 调试模式的对象操作
+		DebugObjectMovement();  // 鐠嬪啳鐦濡鈥崇础閻ㄥ嫬纭呰杽閹垮秳缍
 	}
 	//This year we can draw debug textures as well!
 	//Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
@@ -154,10 +156,11 @@ void TutorialGame::UpdateGame(float dt) {
 	}
 	Debug::Print("Score: " + std::to_string(playerScore), Vector2(80, 95), Debug::WHITE);
 	HandleGrab();
-	HandlePlayerMovement(dt); // 处理玩家输入移动	
-	UpdateGateAndPlate(dt);   // 更新压力板与大门
-	UpdateEnemyAI(dt);        // 更新敌人AI
-	// 右键从玩家正前方发射射线，高亮命中的物体
+	HandlePlayerMovement(dt); // 婢跺嫮鎮婇悳鈺佹儼绶閸忋儳些閸	
+	UpdateGateAndPlate(dt);   // 閺囧瓨鏌婇崢瀣濮忛弶澶哥瑢婢堆囨，
+	UpdateEnemyAI(dt);        // 閺囧瓨鏌婇弫灞兼眽AI
+	UpdateCoinPickups();      // 閹靛濮╁Λ濞村鍣剧敮浣瑰瑎閸欐牭绱濋柆鍨鍘ら崣宥呰剨
+	// 閸欐娊鏁娴犲海甯虹硅埖锝呭犻弬鐟板絺鐏忓嫬鐨犵痪鍖＄礉妤傛ü瀵掗崨鎴掕厬閻ㄥ嫮澧挎担
 	world.OperateOnContents(
 		[dt](GameObject* o) {
 			o->Update(dt);
@@ -205,7 +208,7 @@ void TutorialGame::LateUpdate(float dt) {
 }
 
 /**
- * @brief 初始化摄像机设置。
+ * @brief 閸掓繂瀣瀵查幗鍕鍎氶張楦垮墽鐤嗛妴
  */
 void TutorialGame::InitCamera() {
 	world.GetMainCamera().SetNearPlane(0.1f);
@@ -217,7 +220,7 @@ void TutorialGame::InitCamera() {
 }
 
 /**
- * @brief 初始化游戏世界，清除旧对象并创建新场景。
+ * @brief 閸掓繂瀣瀵插〒鍛婂灆娑撴牜鏅閿涘本绔婚梽銈嗘＋鐎电呰杽楠炶泛鍨卞ょ儤鏌婇崷鐑樻珯閵
  */
 void TutorialGame::InitWorld() {
 	// force delete any pending objects before clearing
@@ -225,6 +228,7 @@ void TutorialGame::InitWorld() {
 		delete p.obj;
 	}
 	pendingRemoval.clear();
+	coins.clear();
 	world.ClearAndErase();
 	physics.Clear();
 	playerObject = nullptr;
@@ -245,12 +249,12 @@ void TutorialGame::InitWorld() {
 	BuildSlopeScene();
 }
 /**
- * @brief 构建一个使用球体网格进行图形显示，并使用边界球体进行刚体表示的游戏对象。
- * @details 这和立方体函数将让你构建很多‘简单’的物理世界。你可能还需要另一个函数来创建OBB立方体。
- * @param position 球体的位置。
- * @param radius 球体的半径。
- * @param inverseMass 球体的逆质量。
- * @return 创建的球体游戏对象。
+ * @brief 閺嬪嫬缂撴稉娑撴担璺ㄦ暏閻炲啩缍嬬純鎴炵壐鏉╂稖灞芥禈瑜般垺妯夌粈鐚寸礉楠炴湹濞囬悽銊ㄧ珶閻ｅ瞼鎮嗘担鎾圭箻鐞涘苯鍨版担鎾广冪粈铏规畱濞撳憡鍨欑电呰杽閵
+ * @details 鏉╂瑥鎷扮粩瀣鏌熸担鎾冲毐閺佹澘鐨㈢拋鈺缍橀弸鍕缂撳板牆姘ｆ肩暆閸楁洍娆戞畱閻椻晝鎮婃稉鏍鏅閵嗗倷缍橀崣閼冲熺箷闂囩憰浣稿綗娑撴稉閸戣姤鏆熼弶銉ュ灡瀵ょ瘺BB缁斿鏌熸担鎾
+ * @param position 閻炲啩缍嬮惃鍕缍呯純閵
+ * @param radius 閻炲啩缍嬮惃鍕宕愬板嫨
+ * @param inverseMass 閻炲啩缍嬮惃鍕鍡氬窛闁插繈
+ * @return 閸掓稑缂撻惃鍕鎮嗘担鎾寸埗閹村繐纭呰杽閵
  */
 GameObject* TutorialGame::BuildSphereObject(GameObject* obj, const Vector3& position, float radius, float inverseMass,
 	Rendering::Mesh* mesh,
@@ -284,13 +288,6 @@ GameObject* TutorialGame::AddSphereToWorld(const Vector3& position,
 	return BuildSphereObject(new GameObject(name), position, radius, inverseMass, mesh, material);
 }
 
-/**
- * @brief 构建一个使用AABB体积的立方体游戏对象。
- * @param position 立方体的位置。
- * @param dimensions 立方体的尺寸。
- * @param inverseMass 立方体的逆质量。
- * @return 创建的立方体游戏对象。
- */
 GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimensions, float inverseMass, 
 	Rendering::Mesh* mesh,
 	const GameTechMaterial* material) {
@@ -303,7 +300,7 @@ GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimens
 		mesh = cubeMesh;  
 	}
 	const GameTechMaterial& usedMaterial =
-		material ? *material : checkerMaterial;  // class 成员变量
+		material ? *material : checkerMaterial;  // class 閹存劕鎲抽崣姗鍣
 	cube->SetRenderObject(new RenderObject(cube->GetTransform(), mesh, usedMaterial));
 	cube->SetPhysicsObject(new PhysicsObject(cube->GetTransform(), cube->GetBoundingVolume()));
 
@@ -336,12 +333,6 @@ GameObject* TutorialGame::AddOBBCubeToWorld(const Vector3& position, Vector3 dim
 
 	return cube;
 }
-/**
- * @brief 初始化游戏中的一些示例对象，如玩家、敌人和奖励品。
- */
-//void TutorialGame::InitGameExamples() {
-//	playerObject = AddPlayerToWorld(Vector3(0, 5, 0));
-//}
 
 
 
@@ -394,11 +385,6 @@ void TutorialGame::UpdateGateAndPlate(float dt) {
 		}
 	}
 }
-/**
- * @brief 处理对象的选择。
- * @details 每一帧，这段代码都会让你执行一次光线投射，看看光标下是否有物体，如果有，就将其“选择”到一个指针中，以便稍后进行操作。按 Q 键可以在此行为和移动相机之间切换。
- * @return 如果选择了新对象，则返回true。
- */
 bool TutorialGame::SelectObject() {
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::Q)) {
 		inSelectionMode = !inSelectionMode;
@@ -449,9 +435,6 @@ bool TutorialGame::SelectObject() {
 	}
 	return false;
 }
-/**
- * @brief 处理锁定对象的移动逻辑。
- */
 void TutorialGame::LockedObjectMovement() {
 	Matrix4 view = world.GetMainCamera().BuildViewMatrix();
 	Matrix4 camWorld = Matrix::Inverse(view);
@@ -479,9 +462,6 @@ void TutorialGame::LockedObjectMovement() {
 	}
 }
 
-/**
- * @brief 处理用于调试的对象移动，允许通过键盘直接对选定对象施加力和扭矩。
- */
 void TutorialGame::DebugObjectMovement() {
 	//If we've selected an object, we can manipulate it with some key presses
 	if (inSelectionMode && selectionObject) {
@@ -520,10 +500,6 @@ void TutorialGame::DebugObjectMovement() {
 	}
 }
 
-/**
- * @brief 处理玩家的移动输入和物理。
- * @param dt 帧时间增量。
- */
 void TutorialGame::HandlePlayerMovement(float dt) {
 	if (!playerObject) {
 		return;
@@ -607,7 +583,7 @@ void TutorialGame::HandleGrab() {
 			Debug::DrawLine(origin, origin + forward * 100.0f, Vector4(1, 0, 0, 1));
 			if (world.Raycast(ray, hit, true, playerObject)) {
 				if (hit.rayDistance > grabMaxDistance) {
-					return; // 超出距离，不让抓
+					return; //
 				}
 				GameObject* hitObj = (GameObject*)hit.node;
 				PhysicsObject* phys = hitObj ? hitObj->GetPhysicsObject() : nullptr;
@@ -673,7 +649,7 @@ void TutorialGame::InitEnemyAgent(const Vector3& pos) {
 		params.stuckMoveEpsilon = 0.05f;
 		params.recoverDuration = 0.6f;
 		params.pathRefreshTime = 1.0f;
-		params.catchDistance = 5.0f;
+		params.catchDistance = 3.0f;
 		// Define floor bounds (a little above ground to include player feet)
 		params.floorMin = floorCenter - floorHalfSize - Vector3(0, -1.0f, 0);
 		params.floorMax = floorCenter + floorHalfSize + Vector3(0, 2.0f, 0);
@@ -702,27 +678,56 @@ GameObject* TutorialGame::AddPlayerToWorld(const Vector3& position) {
 	PlayerObject* player = new PlayerObject(*this, "Player");
 	return BuildSphereObject(player, position, 1.0f, 0.5f, catMesh, &notexMaterial);
 }
+
 GameObject* TutorialGame::AddEnemyToWorld(const Vector3& position) {
 	float meshSize = 2.0f;
-	Vector3 halfDims = Vector3(1,1,1) * meshSize;
-	return AddCubeToWorld(position,halfDims,0.5f,enemyMesh,&notexMaterial);
+	Vector3 halfDims = Vector3(1, 1, 1) * meshSize;
+	return AddCubeToWorld(position, halfDims, 0.5f, enemyMesh, &notexMaterial);
 }
+
 GameObject* TutorialGame::AddCoinToWorld(const Vector3& position) {
-	float radius = 0.20f; // sphere half height = radius
+	float radius = coinRadius;
 	Vector3 spawn = position;
 	// Ensure it rests on default floor (half-height 1.0) instead of embedding
 	float floorTop = 1.2f;
 	if (spawn.y < floorTop + radius) {
 		spawn.y = floorTop + radius + 0.05f;
 	}
-	return AddSphereToWorld(spawn, radius, 0.0f, coinMesh, &notexMaterial, "Coin"); // static coin, no gravity
+	GameObject* coin = new GameObject("Coin");
+	Vector3 sphereSize = Vector3(radius, radius, radius);
+	SphereVolume* vol = new SphereVolume(radius);
+	coin->SetBoundingVolume(vol);
+	coin->GetTransform().SetScale(sphereSize).SetPosition(spawn);
+	coin->SetRenderObject(new RenderObject(coin->GetTransform(), coinMesh ? coinMesh : sphereMesh, notexMaterial));
+	if (coin->GetRenderObject()) {
+		coin->GetRenderObject()->SetColour(Vector4(1.0f, 0.9f, 0.2f, 1.0f)); // bright yellow for visibility
+	}
+	// No PhysicsObject to avoid physics bounce; pickup via distance check
+	world.AddGameObject(coin);
+	coins.push_back(coin);
+	return coin;
 }
 
 void TutorialGame::BuildSlopeScene() {
 	Vector3 floorPos = Vector3(0, 0, 50);
+
 	AddFloorToWorld(floorPos); //地板
-	// 放在地板上方，半径 0.25，高度余量 0.05
-	AddCoinToWorld(Vector3(0, 1.3f, 40)); 
+
+
+
+	// 随机生成 10 个金币，位置在地板范围内，高度 floorCenter.y + 1.0f
+
+	std::mt19937 rng((uint32_t)std::chrono::system_clock::now().time_since_epoch().count());
+
+	Vector3 margin = floorHalfSize * 0.2f;
+	std::uniform_real_distribution<float> distX(floorCenter.x - floorHalfSize.x + margin.x, floorCenter.x + floorHalfSize.x - margin.x);
+	std::uniform_real_distribution<float> distZ(floorCenter.z - floorHalfSize.z + margin.z, floorCenter.z + floorHalfSize.z - margin.z);
+	for (int i = 0; i < 10; ++i) {
+		Vector3 coinPos(distX(rng), floorCenter.y + 1.0f, distZ(rng));
+		AddCoinToWorld(coinPos);
+	}
+
+
 	// High platform for spawn
 	Vector3 platformHalfSize = Vector3(12.0f, 2.0f, 12.0f);
 	Vector3 platformPos = Vector3(0.0f, 12.0f, -30.0f);
@@ -732,7 +737,7 @@ void TutorialGame::BuildSlopeScene() {
 	Vector3 slopeHalfSize = Vector3(8.0f, 1.0f, 15.0f);
 	Vector3 slopePos = Vector3(0.0f, 7.0f, -5.0f);
 	Quaternion slopeRot = Quaternion::AxisAngleToQuaterion(Vector3(1, 0, 0), 25.0f);
-	AddOBBCubeToWorld(slopePos, slopeHalfSize, slopeRot, 0.0f); //斜坡
+	AddOBBCubeToWorld(slopePos, slopeHalfSize, slopeRot, 0.0f);
 
 	// Pushable cube on the platform center
 	pushableCube = AddSphereToWorld(platformPos + Vector3(0.0f, platformHalfSize.y + pushCubeHalfSize.y, 0.0f),1.0f , 1.0f);
@@ -804,6 +809,7 @@ void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
 		// wait a few physics frames to let existing collisions age out
 		pendingRemoval.push_back({ coin, 8 });
 	}
+	coins.erase(std::remove(coins.begin(), coins.end(), coin), coins.end());
 }
 
 void TutorialGame::OnPlayerCaught() {
@@ -832,5 +838,24 @@ void TutorialGame::UpdatePendingRemovals(float dt) {
 		else {
 			++it;
 		}
+	}
+}
+
+void TutorialGame::UpdateCoinPickups() {
+	if (!playerObject) {
+		return;
+	}
+	Vector3 playerPos = playerObject->GetTransform().GetPosition();
+	std::vector<GameObject*> toCollect;
+	for (GameObject* coin : coins) {
+		if (!coin) continue;
+		Vector3 diff = playerPos - coin->GetTransform().GetPosition();
+		float dist = Vector::Length(diff);
+		if (dist <= (playerRadius + coinRadius)) {
+			toCollect.push_back(coin);
+		}
+	}
+	for (GameObject* coin : toCollect) {
+		OnPlayerCollectCoin(coin);
 	}
 }

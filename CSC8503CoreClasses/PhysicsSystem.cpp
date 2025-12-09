@@ -238,7 +238,6 @@ void PhysicsSystem::ImpulseResolveCollision(GameObject& a, GameObject& b, Collis
 	PhysicsObject* physA = a.GetPhysicsObject();
 	PhysicsObject* physB = b.GetPhysicsObject();
 	if (!physA || !physB) {
-		std::cout << "!physA || !physB" << std::endl;
 		return;
 	}
 	float invMassA = physA->GetInverseMass();
@@ -439,7 +438,10 @@ void PhysicsSystem::ClearForces()
 {
 	gameWorld.OperateOnContents(
 		[](GameObject* o) {
-			o->GetPhysicsObject()->ClearForces();
+			PhysicsObject* phys = o->GetPhysicsObject();
+			if (phys) {
+				phys->ClearForces();
+			}
 		}
 	);
 }
