@@ -29,10 +29,10 @@ using namespace CSC8503;
 using namespace NCL::Maths;
 
 /**
- * @brief 闁哄瀚伴悩杈╁瓨绋�柡鍌涘嗗▓鎴﹀极濞嗘垟鏌ゆ繛鎾�啞閸ㄦ瑩�
- * @param inWorld 婵炴挸鎲￠崹娆愮▔閺嶉弲�
- * @param inRenderer 婵炴挸鎲￠崹娆忋掗崣澶屽�闁革絻鍔
- * @param inPhysics 闁绘せ鏅濋幃濠勫寲閼姐�鍩犻柕
+ * @brief 闂佸搫鐎氫即鎮╂潏鈺佺摠缁嬪愭煛閸屾稑鍡椻枔閹达箑鏋佹繛鍡樺灍閺屻倖绻涢幘铏鍟為柛銊︾懇婵
+ * @param inWorld 濠电偞鎸搁幉锟犲垂濞嗘劗鈻旈柡宥夊疾闂
+ * @param inRenderer 濠电偞鎸搁幉锟犲垂濞嗗繈鎺楀矗婢跺苯甯闂侀潻绲婚崝
+ * @param inPhysics 闂佺粯銇涢弲婵嬪箖婵犲嫬瀵查柤濮愬楅崺鐘绘煏
  */
 TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRenderer, PhysicsSystem& inPhysics)
 	:	world(inWorld),
@@ -104,7 +104,7 @@ bool TutorialGame::IsPlayerGrounded() const {
 }
 
 /**
- * @brief 闁轰焦鐟ч埢鐓庛掗崨濠傜亞闁汇劌�閻庝粙�搁崟閸ら亶��
+ * @brief 闂佽桨鐒﹂悷褔鍩㈤悡搴涙帡宕ㄦ繝鍌滀簽闂佹眹鍔岀氶柣搴濈矙瀵鎼佸礋闁搞倝浜跺闁
  */
 TutorialGame::~TutorialGame()	{
 	delete enemyAI;
@@ -114,8 +114,8 @@ TutorialGame::~TutorialGame()	{
 }
 
 /**
- * @brief 婵锝�箰閹舵岸�寸涙ɑ鐓婵炴挸鎲￠崹娆撴焻閺勫繒甯嗛柕
- * @param dt 閻㈣庡炲倿��弶鎴犲仱閸ｆ椽�
+ * @brief 濠甸敐鍛绠伴柟鑸靛哺瀵瀵告稒蓱閻撳┑鐐存尭閹诧繝宕瑰▎鎾寸劵闁哄嫬绻掔敮鍡涙煏
+ * @param dt 闁汇垼搴＄偛鍊垮婂氬级閹寸姴浠遍柛锝嗘そ婵
  */
 void TutorialGame::UpdateGame(float dt) {
 	float fps = dt > 1e-6f ? 1.0f / dt : 0.0f;
@@ -128,14 +128,14 @@ void TutorialGame::UpdateGame(float dt) {
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F2)) {
 		InitCamera(); //F2 will reset the camera to a specific default place
 	}
-	// 闂傚懎绻戝┃闁告牗鐗滅�娊�堕悢绗哄孩鎯 - 闁告垵绻愰惃閻犱緤绱曢悾濠氬磻韫囨挻�
+	// 闂傚倸鎳庣换鎴濃攦闂佸憡鐗楅悧婊呰勫▕瀵鍫曟偄缁楀搫瀛╅幆 - 闂佸憡鍨电换鎰版儍闁荤姳绶ょ槐鏇㈡偩婵犳艾纾婚煫鍥ㄦ尰閳
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
 		world.ShuffleConstraints(true);
 	}
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F10)) {
 		world.ShuffleConstraints(false);
 	}
-	// 闂傚懎绻戝┃闁告牗鐗曠涵鍛版澖濡�倕鎼�
+	// 闂傚倸鎳庣换鎴濃攦闂佸憡鐗楅悧鏇犳兜閸涚増婢栨俊鐐鍊曢幖缂
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F7)) {
 		world.ShuffleObjects(true);
 	}
@@ -144,10 +144,10 @@ void TutorialGame::UpdateGame(float dt) {
 	}
 
 	if (lockedObject) {
-		LockedObjectMovement(); // 濞达�娉曢�銈囩不濠㈣埖鎸抽�闁�矇鍐ㄧ�闂佸じ绀�悾鍓х數鍛版澖
+		LockedObjectMovement(); // 婵炶揪缍濞夋洟寮閵堝洨涓嶆繝銏ｅ煐閹告娊寮闂佺呯焽閸愩劎鍘闂備礁銇樼粈渚鎮鹃崜褏鏁搁崨鐗堟緰
 	}
 	else {
-		DebugObjectMovement();  // 閻犲鍟抽惁婵￠垾宕囩闁汇劌�绾鍛版澖闁瑰灝绉崇�
+		DebugObjectMovement();  // 闁荤姴閸熸娊鎯佸┑锟犲灳瀹曞洨闂佹眹鍔岀氱痪閸涚増婢栭梺鐟扮仢缁夊磭绱
 	}
 	//This year we can draw debug textures as well!
 	//Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
@@ -160,11 +160,11 @@ void TutorialGame::UpdateGame(float dt) {
 	Debug::Print("Maze: " + mazeStatus, Vector2(5, 70), Debug::WHITE);
 	Debug::Print("Score: " + std::to_string(playerScore), Vector2(80, 95), Debug::WHITE);
 	HandleGrab();
-	HandlePlayerMovement(dt); // 濠㈣泛�閹濠囨偝閳轰焦鍎肩欢闁稿繈鍎充簺闁	
-	UpdateGateAndPlate(dt);   // 闁哄洤鐡ㄩ弻濠囧储鐎ｆ慨蹇涘级�跺摜鐟㈠㈠爢鍥�
-	UpdateEnemyAI(dt);        // 闁哄洤鐡ㄩ弻濠囧极鐏炲吋�紸I
-	UpdateCoinPickups();      // 闁归潧婵鈺佄涙繛鏉戦崳鍓ф暜娴ｇ懓鐟庨柛娆�壄缁辨繈鏌嗛崹閸樸�宕ｅュ懓鍓
-	// 闁告瑦濞婇弫濞�姴娴�敮铏圭�煐閿濆懎鐘��閻熸澘绲洪悘蹇撳閻ㄧ姷鐥閸栵紕�夊Δ鍌浢肩�帡宕ㄩ幋鎺曞�闁汇劌��ф�鎷
+	HandlePlayerMovement(dt); // 婵犮垼娉涚氶柟婵犲洦鍋濋柍杞扮劍閸庤偐娆㈤梺绋跨箞閸庡厖绨洪梺	
+	UpdateGateAndPlate(dt);   // 闂佸搫娲ら悺銊╁蓟婵犲洤鍌ㄩ悗锝嗘叏韫囨稑绾у㈣泛鎽滈悷銏犮垹鐖㈤崶閿
+	UpdateEnemyAI(dt);        // 闂佸搫娲ら悺銊╁蓟婵犲洤鏋侀悘鐐插悑閻绱窱
+	UpdateCoinPickups();      // 闂佸綊娼у┑閳轰絼娑欑箾閺夋垿宕抽崜褎鏆滃ù锝囨嚀閻熷酣鏌涘▎鎰澹勭紒杈ㄧ箞閺屽棝宕归柛妯稿濆畷锝呫儱鎳撻崜
+	// 闂佸憡鐟︽繛濠囧极婵炲稿Т濞撮庢暜閾忓湱鍛鐓愰柨婵嗘噹閻樿叉橀柣鐔告緲缁叉椽鎮樿箛鎾抽柣銊уХ閻ラ柛鏍电磿缁澶娢旈崒娴㈣偐鍨甯″畷銊╁箣閹烘洖骞闂佹眹鍔岀氬⒀勫ч幏
 	world.OperateOnContents(
 		[dt](GameObject* o) {
 			o->Update(dt);
@@ -212,7 +212,7 @@ void TutorialGame::LateUpdate(float dt) {
 }
 
 /**
- * @brief 闁告帗绻傜ｇ�煡骞楅崟閸庢岸��ウ鍨澧介悿鍡涘�
+ * @brief 闂佸憡甯楃换鍌滐絿鍨鐓￠獮妤呭礋闁稿孩宀稿鍨銈﹂崹婢т粙鎮块崱娑樜
  */
 void TutorialGame::InitCamera() {
 	world.GetMainCamera().SetNearPlane(0.1f);
@@ -224,7 +224,7 @@ void TutorialGame::InitCamera() {
 }
 
 /**
- * @brief 闁告帗绻傜ｇ�彃銆掗崨濠傜亞濞戞挻鐗滈弲闁挎稑鏈缁斿氭⒔閵堝�锛�悗鐢靛懓鏉芥犵偠娉涢崹鍗�倗鍎ら弻濠囧捶閻戞ɑ鐝�
+ * @brief 闂佸憡甯楃换鍌滐絿鍨褰冮妴鎺楀川婵犲倻浜炴繛鎴炴尰閻楁粓寮查梺鎸庣☉閺堢紒鏂挎碍鈷旈柕鍫濇欓敍瀣鎮楅悽闈涙嚀閺夎姤鐘靛仩濞夋盯宕归崡鐐鍊楅崕銈夊蓟婵犲洤鎹堕柣鎴炆戦悵闂
  */
 void TutorialGame::InitWorld() {
 	// force delete any pending objects before clearing
@@ -254,12 +254,12 @@ void TutorialGame::InitWorld() {
 	BuildSlopeScene();
 }
 /**
- * @brief 闁哄瀚缂傛挻绋�☉鎾存媴鐠恒劍鏆忛柣鐐插暕缂嶅绱旈幋鐐靛愰弶鈺傜栫仦鑺ョ堢憸鑸鍨哄Ο澶岀矆閻�哥�犵偞婀规繛鍥鎮介妸銊х彾闁伙絽鐬奸幃鍡樻媴閹惧湱绠�悶娑��閸ㄧ�鎷呴幘骞垮啰绮堥搹瑙勭暠婵炴挸鎲￠崹娆戠數鍛版澖闁
- * @details 閺�晜鐟ラ幏鎵�╃ｉ弻鐔告�閹惧啿姣愰柡浣规緲閻ㄣ垻鎷�埡缂嶆﹢�搁崟缂傛挸鏉跨�濮橈絾鑲╂殕闁告佹磵濞嗘垶鐣遍柣�绘櫇閹濠冪▔閺嶉弲闁靛棗鍊风紞姗宕ｉ柤鍐茬喓绠烽梻鍥╂啺娴ｇ跨稐濞戞挻绋�柛鎴ｅГ閺嗙喖�堕妷銉ョ�鐎点倗鐦築B缂佹柨閺�喐鎷呴幘
- * @param position 闁荤偛鍟╃紞瀣鎯�崟缂嶅懐绱旈�
- * @param radius 闁荤偛鍟╃紞瀣鎯�崟�曟劕鏉�
- * @param inverseMass 闁荤偛鍟╃紞瀣鎯�崟閸℃艾绐涢梺鎻掔箞
- * @return 闁告帗绋戠紓鎾绘儍閸曢幃鍡樻媴閹惧�煑闁�潙绻愮涵鍛版澖�
+ * @brief 闂佸搫鐎氱紓鍌涙尰缁嬪娾槈閹惧瓨濯撮悹鎭掑妽閺嗗繘鏌ｉ悙鎻掓殨缂傚秴缁辨棃骞嬮悙闈涙劙寮堕埡鍌滄牜浠﹂懞銉у牏鎲搁懜閸ㄥ搫螣婢跺瞼鐭嗛柣姘鍝ュ嬬姷鍋炲﹢瑙勭箾閸ラ幃浠嬪Ω閵娧呭骄闂佷紮绲介惉濂稿箖閸℃ɑ濯撮柟鎯ф贡缁犲氭偠濞戞垮伴柛銊у楅幏鍛村箻楠炲灝鍟扮划鍫ユ惞鐟欏嫮鏆犲┑鐐存尭閹诧繝宕瑰▎鎴犳暩閸涚増婢栭梺
+ * @details 闁哄嗘櫆閻熴儵骞忛幍缁鈺冿綁寮婚悢鍛婂撮柟鎯у暱濮ｆ劙鏌℃担瑙勭凡闁汇劊鍨婚幏瀣鍩＄紓宥嗭耿瀵鎼佸礋缂傚倹鎸搁弶璺ㄥ曟慨姗堢稻閼测晜娈曢梺鍛婁焦纾垫繛鍡樺灦閻ｉ亶鏌ｅ炵粯娅囬柟婵犲啰鈻旈柡宥夊疾闂侀潧妫楅崐椋庣礊濮楀畷锝夋煠閸愯尙鍠撶粻鐑芥⒒閸モ晜鍟哄ù锝囪法绋愭繛鎴炴尰缁嬪愭煕閹达絽袚闁哄棛鍠栧鍫曞Ψ閵夈儳浠閻庣偣鍊楅惁绡塀缂備焦鏌ㄩ柡宀鍠愰幏鍛村箻
+ * @param position 闂佽崵鍋涢崯鈺冪礊鐎ｉ幆鍐宕熺紓宥呮噽缁辨棃鏌
+ * @param radius 闂佽崵鍋涢崯鈺冪礊鐎ｉ幆鍐宕熺规洘鍔曢弶鍨
+ * @param inverseMass 闂佽崵鍋涢崯鈺冪礊鐎ｉ幆鍐宕熼柛鈩冭壘缁愭盯姊洪幓鎺旂疄
+ * @return 闂佸憡甯楃粙鎴犵磽閹剧粯鍎嶉柛鏇㈠箖閸℃ɑ濯撮柟鎯х跨厬闂佽勬綑缁绘劗娑甸崨鐗堟緰闂
  */
 GameObject* TutorialGame::BuildSphereObject(GameObject* obj, const Vector3& position, float radius, float inverseMass,
 	Rendering::Mesh* mesh,
@@ -305,7 +305,7 @@ GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimens
 		mesh = cubeMesh;  
 	}
 	const GameTechMaterial& usedMaterial =
-		material ? *material : checkerMaterial;  // class 闁瑰瓨鍔曢幉鎶藉矗濮楅崳
+		material ? *material : checkerMaterial;  // class 闂佺懓鐡ㄩ崝鏇㈠箟閹惰棄鐭楁慨妤呭闯
 	cube->SetRenderObject(new RenderObject(cube->GetTransform(), mesh, usedMaterial));
 	cube->SetPhysicsObject(new PhysicsObject(cube->GetTransform(), cube->GetBoundingVolume()));
 
@@ -715,6 +715,7 @@ GameObject* TutorialGame::AddCoinToWorld(const Vector3& position) {
 
 void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offset) {
 	mazeStatus = "loading";
+	// Resolve relative path into the engine Asset data directory
 	std::string resolvedPath = path;
 	if (resolvedPath.find(":") == std::string::npos) {
 		const std::string dataPrefix = "Assets/Data/";
@@ -732,8 +733,6 @@ void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offse
 	}
 	struct Cell { Vector3 pos; Vector3 size; };
 	std::vector<Cell> cells;
-	Vector3 minP(1e9f, 1e9f, 1e9f);
-	Vector3 maxP(-1e9f, -1e9f, -1e9f);
 	std::string line;
 	while (std::getline(file, line)) {
 		if (line.empty()) {
@@ -744,23 +743,17 @@ void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offse
 		if (!(iss >> px >> py >> pz >> sx >> sy >> sz)) {
 			continue;
 		}
-		Vector3 pos(px, py, pz);
-		Vector3 size(sx, sy, sz);
-		cells.push_back({ pos, size });
-		minP.x = std::min(minP.x, pos.x); minP.y = std::min(minP.y, pos.y); minP.z = std::min(minP.z, pos.z);
-		maxP.x = std::max(maxP.x, pos.x); maxP.y = std::max(maxP.y, pos.y); maxP.z = std::max(maxP.z, pos.z);
+		cells.push_back({ Vector3(px, py, pz), Vector3(sx, sy, sz) });
 	}
 	if (cells.empty()) {
 		mazeStatus = "maze empty";
 		Debug::Print("Maze empty", Vector2(5, 60), Debug::RED);
 		return;
 	}
-	Vector3 rawCenter = (minP + maxP) * 0.5f;
-	Vector3 targetCenter = floorCenter + offset;
-	Vector3 translation = targetCenter - rawCenter;
 	for (const auto& c : cells) {
-		Vector3 pos = c.pos + translation;
+		Vector3 pos = c.pos + offset; // use positions from file (plus optional offset)
 		Vector3 halfDims = c.size * 0.5f;
+		halfDims.y = halfDims.y * 2;
 		GameObject* wall = AddCubeToWorld(pos, halfDims, 0.0f);
 		if (wall && wall->GetRenderObject()) {
 			wall->GetRenderObject()->SetColour(Vector4(0.4f, 0.4f, 0.4f, 1.0f));
@@ -774,15 +767,15 @@ void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offse
 void TutorialGame::BuildSlopeScene() {
 	Vector3 floorPos = Vector3(0, 0, 50);
 
-	AddFloorToWorld(floorPos); //地板
+	AddFloorToWorld(floorPos); //鍦版澘
 
-	// 加载迷�（偏移可按需调整�
+	// 鍔犺浇杩峰锛堝亸绉诲彲鎸夐渶璋冩暣锛
 
 	LoadMazeFromTxt("Assets/Data/maze.txt", Vector3());
 
 
 
-	// 随机生成 10 �金币，位�在地板范围内，高� floorCenter.y + 1.0f
+	// 闅忔満鐢熸垚 10 涓閲戝竵锛屼綅缃鍦ㄥ湴鏉胯寖鍥村唴锛岄珮搴 floorCenter.y + 1.0f
 
 	std::mt19937 rng((uint32_t)std::chrono::system_clock::now().time_since_epoch().count());
 
