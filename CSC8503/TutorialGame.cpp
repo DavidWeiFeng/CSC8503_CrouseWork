@@ -79,7 +79,7 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 	notexMaterial.diffuseTex    = defaultTex ? defaultTex : checkerTex;
 
 	if (!navMesh) {
-		navMesh = new NavigationMesh("test.navmesh");
+		navMesh = new NavigationMesh("smalltest.navmesh");
 	}
 
 	InitCamera();
@@ -753,7 +753,6 @@ void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offse
 	for (const auto& c : cells) {
 		Vector3 pos = c.pos + offset; // use positions from file (plus optional offset)
 		Vector3 halfDims = c.size * 0.5f;
-		halfDims.y = halfDims.y * 2;
 		GameObject* wall = AddCubeToWorld(pos, halfDims, 0.0f);
 		if (wall && wall->GetRenderObject()) {
 			wall->GetRenderObject()->SetColour(Vector4(0.4f, 0.4f, 0.4f, 1.0f));

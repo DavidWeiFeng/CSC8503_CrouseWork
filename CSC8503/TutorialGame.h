@@ -94,7 +94,7 @@ namespace NCL {
 			float		forceMagnitude;
 			float		playerMoveForce = 30.0f;
 			float		playerMaxSpeed  = 10.0f;
-			float		playerJumpImpulse = 11.0f;
+			float		playerJumpImpulse = 14.0f;
 			float		groundFriction = 0.93f; // treated as per-second damping base
 			float		airFriction    = 0.99f; // treated as per-second damping base
 			float		playerRadius   = 1.0f;
