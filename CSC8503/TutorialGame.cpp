@@ -16,8 +16,11 @@
 #include "GameTechRendererInterface.h"
 #include "Ray.h"
 #include "OBBVolume.h"
+#include "Assets.h"
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 #include <random>
 #include <chrono>
 
@@ -26,10 +29,10 @@ using namespace CSC8503;
 using namespace NCL::Maths;
 
 /**
- * @brief 閺嬪嫰鐘辩存稉閺傛壆娈戦弫娆戔柤濞撳憡鍨欓妴
- * @param inWorld 濞撳憡鍨欐稉鏍鏅閵
- * @param inRenderer 濞撳憡鍨欏〒鍙夌厠閸ｃ劊
- * @param inPhysics 閻椻晝鎮婄化鑽ょ埠閵
+ * @brief 闁哄瀚伴悩杈╁瓨绋�柡鍌涘嗗▓鎴﹀极濞嗘垟鏌ゆ繛鎾�啞閸ㄦ瑩�
+ * @param inWorld 婵炴挸鎲￠崹娆愮▔閺嶉弲�
+ * @param inRenderer 婵炴挸鎲￠崹娆忋掗崣澶屽�闁革絻鍔
+ * @param inPhysics 闁绘せ鏅濋幃濠勫寲閼姐�鍩犻柕
  */
 TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRenderer, PhysicsSystem& inPhysics)
 	:	world(inWorld),
@@ -101,7 +104,7 @@ bool TutorialGame::IsPlayerGrounded() const {
 }
 
 /**
- * @brief 閺佹瑧鈻煎〒鍛婂灆閻ㄥ嫭鐎介弸鍕鍤遍弫鑸
+ * @brief 闁轰焦鐟ч埢鐓庛掗崨濠傜亞闁汇劌�閻庝粙�搁崟閸ら亶��
  */
 TutorialGame::~TutorialGame()	{
 	delete enemyAI;
@@ -111,8 +114,8 @@ TutorialGame::~TutorialGame()	{
 }
 
 /**
- * @brief 濮ｅ繐鎶氶弴瀛樻煀濞撳憡鍨欓柅鏄忕帆閵
- * @param dt 鐢褎妞傞梻鏉戠偤鍣洪妴
+ * @brief 婵锝�箰閹舵岸�寸涙ɑ鐓婵炴挸鎲￠崹娆撴焻閺勫繒甯嗛柕
+ * @param dt 閻㈣庡炲倿��弶鎴犲仱閸ｆ椽�
  */
 void TutorialGame::UpdateGame(float dt) {
 	float fps = dt > 1e-6f ? 1.0f / dt : 0.0f;
@@ -125,14 +128,14 @@ void TutorialGame::UpdateGame(float dt) {
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F2)) {
 		InitCamera(); //F2 will reset the camera to a specific default place
 	}
-	// 闂呭繑婧閸栨牜瀹抽弶鐔笺庢惔 - 閸戝繐鐨鐠侊紕鐣婚崑蹇撴▕
+	// 闂傚懎绻戝┃闁告牗鐗滅�娊�堕悢绗哄孩鎯 - 闁告垵绻愰惃閻犱緤绱曢悾濠氬磻韫囨挻�
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
 		world.ShuffleConstraints(true);
 	}
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F10)) {
 		world.ShuffleConstraints(false);
 	}
-	// 闂呭繑婧閸栨牕纭呰杽妞ゅ搫绨
+	// 闂傚懎绻戝┃闁告牗鐗曠涵鍛版澖濡�倕鎼�
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F7)) {
 		world.ShuffleObjects(true);
 	}
@@ -141,10 +144,10 @@ void TutorialGame::UpdateGame(float dt) {
 	}
 
 	if (lockedObject) {
-		LockedObjectMovement(); // 娴ｈ法鏁ょ粻婢舵挳鏁閹貉冨煑闁夸礁鐣剧电呰杽
+		LockedObjectMovement(); // 濞达�娉曢�銈囩不濠㈣埖鎸抽�闁�矇鍐ㄧ�闂佸じ绀�悾鍓х數鍛版澖
 	}
 	else {
-		DebugObjectMovement();  // 鐠嬪啳鐦濡鈥崇础閻ㄥ嫬纭呰杽閹垮秳缍
+		DebugObjectMovement();  // 閻犲鍟抽惁婵￠垾宕囩闁汇劌�绾鍛版澖闁瑰灝绉崇�
 	}
 	//This year we can draw debug textures as well!
 	//Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
@@ -154,13 +157,14 @@ void TutorialGame::UpdateGame(float dt) {
 		Vector3 pp = playerObject->GetTransform().GetPosition();
 		Debug::Print("Player: " + std::to_string(pp.x) + "," + std::to_string(pp.y) + "," + std::to_string(pp.z), Vector2(5, 75), Debug::WHITE);
 	}
+	Debug::Print("Maze: " + mazeStatus, Vector2(5, 70), Debug::WHITE);
 	Debug::Print("Score: " + std::to_string(playerScore), Vector2(80, 95), Debug::WHITE);
 	HandleGrab();
-	HandlePlayerMovement(dt); // 婢跺嫮鎮婇悳鈺佹儼绶閸忋儳些閸	
-	UpdateGateAndPlate(dt);   // 閺囧瓨鏌婇崢瀣濮忛弶澶哥瑢婢堆囨，
-	UpdateEnemyAI(dt);        // 閺囧瓨鏌婇弫灞兼眽AI
-	UpdateCoinPickups();      // 閹靛濮╁Λ濞村鍣剧敮浣瑰瑎閸欐牭绱濋柆鍨鍘ら崣宥呰剨
-	// 閸欐娊鏁娴犲海甯虹硅埖锝呭犻弬鐟板絺鐏忓嫬鐨犵痪鍖＄礉妤傛ü瀵掗崨鎴掕厬閻ㄥ嫮澧挎担
+	HandlePlayerMovement(dt); // 濠㈣泛�閹濠囨偝閳轰焦鍎肩欢闁稿繈鍎充簺闁	
+	UpdateGateAndPlate(dt);   // 闁哄洤鐡ㄩ弻濠囧储鐎ｆ慨蹇涘级�跺摜鐟㈠㈠爢鍥�
+	UpdateEnemyAI(dt);        // 闁哄洤鐡ㄩ弻濠囧极鐏炲吋�紸I
+	UpdateCoinPickups();      // 闁归潧婵鈺佄涙繛鏉戦崳鍓ф暜娴ｇ懓鐟庨柛娆�壄缁辨繈鏌嗛崹閸樸�宕ｅュ懓鍓
+	// 闁告瑦濞婇弫濞�姴娴�敮铏圭�煐閿濆懎鐘��閻熸澘绲洪悘蹇撳閻ㄧ姷鐥閸栵紕�夊Δ鍌浢肩�帡宕ㄩ幋鎺曞�闁汇劌��ф�鎷
 	world.OperateOnContents(
 		[dt](GameObject* o) {
 			o->Update(dt);
@@ -208,7 +212,7 @@ void TutorialGame::LateUpdate(float dt) {
 }
 
 /**
- * @brief 閸掓繂瀣瀵查幗鍕鍎氶張楦垮墽鐤嗛妴
+ * @brief 闁告帗绻傜ｇ�煡骞楅崟閸庢岸��ウ鍨澧介悿鍡涘�
  */
 void TutorialGame::InitCamera() {
 	world.GetMainCamera().SetNearPlane(0.1f);
@@ -220,7 +224,7 @@ void TutorialGame::InitCamera() {
 }
 
 /**
- * @brief 閸掓繂瀣瀵插〒鍛婂灆娑撴牜鏅閿涘本绔婚梽銈嗘＋鐎电呰杽楠炶泛鍨卞ょ儤鏌婇崷鐑樻珯閵
+ * @brief 闁告帗绻傜ｇ�彃銆掗崨濠傜亞濞戞挻鐗滈弲闁挎稑鏈缁斿氭⒔閵堝�锛�悗鐢靛懓鏉芥犵偠娉涢崹鍗�倗鍎ら弻濠囧捶閻戞ɑ鐝�
  */
 void TutorialGame::InitWorld() {
 	// force delete any pending objects before clearing
@@ -233,6 +237,7 @@ void TutorialGame::InitWorld() {
 	physics.Clear();
 	playerObject = nullptr;
 	playerScore = 0;
+	mazeStatus = "not loaded";
 	selectionObject = nullptr;
 	pushableCube = nullptr;
 	pressurePlate = nullptr;
@@ -249,12 +254,12 @@ void TutorialGame::InitWorld() {
 	BuildSlopeScene();
 }
 /**
- * @brief 閺嬪嫬缂撴稉娑撴担璺ㄦ暏閻炲啩缍嬬純鎴炵壐鏉╂稖灞芥禈瑜般垺妯夌粈鐚寸礉楠炴湹濞囬悽銊ㄧ珶閻ｅ瞼鎮嗘担鎾圭箻鐞涘苯鍨版担鎾广冪粈铏规畱濞撳憡鍨欑电呰杽閵
- * @details 鏉╂瑥鎷扮粩瀣鏌熸担鎾冲毐閺佹澘鐨㈢拋鈺缍橀弸鍕缂撳板牆姘ｆ肩暆閸楁洍娆戞畱閻椻晝鎮婃稉鏍鏅閵嗗倷缍橀崣閼冲熺箷闂囩憰浣稿綗娑撴稉閸戣姤鏆熼弶銉ュ灡瀵ょ瘺BB缁斿鏌熸担鎾
- * @param position 閻炲啩缍嬮惃鍕缍呯純閵
- * @param radius 閻炲啩缍嬮惃鍕宕愬板嫨
- * @param inverseMass 閻炲啩缍嬮惃鍕鍡氬窛闁插繈
- * @return 閸掓稑缂撻惃鍕鎮嗘担鎾寸埗閹村繐纭呰杽閵
+ * @brief 闁哄瀚缂傛挻绋�☉鎾存媴鐠恒劍鏆忛柣鐐插暕缂嶅绱旈幋鐐靛愰弶鈺傜栫仦鑺ョ堢憸鑸鍨哄Ο澶岀矆閻�哥�犵偞婀规繛鍥鎮介妸銊х彾闁伙絽鐬奸幃鍡樻媴閹惧湱绠�悶娑��閸ㄧ�鎷呴幘骞垮啰绮堥搹瑙勭暠婵炴挸鎲￠崹娆戠數鍛版澖闁
+ * @details 閺�晜鐟ラ幏鎵�╃ｉ弻鐔告�閹惧啿姣愰柡浣规緲閻ㄣ垻鎷�埡缂嶆﹢�搁崟缂傛挸鏉跨�濮橈絾鑲╂殕闁告佹磵濞嗘垶鐣遍柣�绘櫇閹濠冪▔閺嶉弲闁靛棗鍊风紞姗宕ｉ柤鍐茬喓绠烽梻鍥╂啺娴ｇ跨稐濞戞挻绋�柛鎴ｅГ閺嗙喖�堕妷銉ョ�鐎点倗鐦築B缂佹柨閺�喐鎷呴幘
+ * @param position 闁荤偛鍟╃紞瀣鎯�崟缂嶅懐绱旈�
+ * @param radius 闁荤偛鍟╃紞瀣鎯�崟�曟劕鏉�
+ * @param inverseMass 闁荤偛鍟╃紞瀣鎯�崟閸℃艾绐涢梺鎻掔箞
+ * @return 闁告帗绋戠紓鎾绘儍閸曢幃鍡樻媴閹惧�煑闁�潙绻愮涵鍛版澖�
  */
 GameObject* TutorialGame::BuildSphereObject(GameObject* obj, const Vector3& position, float radius, float inverseMass,
 	Rendering::Mesh* mesh,
@@ -300,7 +305,7 @@ GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimens
 		mesh = cubeMesh;  
 	}
 	const GameTechMaterial& usedMaterial =
-		material ? *material : checkerMaterial;  // class 閹存劕鎲抽崣姗鍣
+		material ? *material : checkerMaterial;  // class 闁瑰瓨鍔曢幉鎶藉矗濮楅崳
 	cube->SetRenderObject(new RenderObject(cube->GetTransform(), mesh, usedMaterial));
 	cube->SetPhysicsObject(new PhysicsObject(cube->GetTransform(), cube->GetBoundingVolume()));
 
@@ -708,27 +713,96 @@ GameObject* TutorialGame::AddCoinToWorld(const Vector3& position) {
 	return coin;
 }
 
+void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offset) {
+	mazeStatus = "loading";
+	std::string resolvedPath = path;
+	if (resolvedPath.find(":") == std::string::npos) {
+		const std::string dataPrefix = "Assets/Data/";
+		std::string relative = resolvedPath;
+		if (relative.find(dataPrefix) == 0) {
+			relative = relative.substr(dataPrefix.size());
+		}
+		resolvedPath = Assets::DATADIR + relative;
+	}
+	std::ifstream file(resolvedPath);
+	if (!file.is_open()) {
+		mazeStatus = "load fail";
+		Debug::Print("Maze load failed: " + resolvedPath, Vector2(5, 60), Debug::RED);
+		return;
+	}
+	struct Cell { Vector3 pos; Vector3 size; };
+	std::vector<Cell> cells;
+	Vector3 minP(1e9f, 1e9f, 1e9f);
+	Vector3 maxP(-1e9f, -1e9f, -1e9f);
+	std::string line;
+	while (std::getline(file, line)) {
+		if (line.empty()) {
+			continue;
+		}
+		std::istringstream iss(line);
+		float px, py, pz, sx, sy, sz;
+		if (!(iss >> px >> py >> pz >> sx >> sy >> sz)) {
+			continue;
+		}
+		Vector3 pos(px, py, pz);
+		Vector3 size(sx, sy, sz);
+		cells.push_back({ pos, size });
+		minP.x = std::min(minP.x, pos.x); minP.y = std::min(minP.y, pos.y); minP.z = std::min(minP.z, pos.z);
+		maxP.x = std::max(maxP.x, pos.x); maxP.y = std::max(maxP.y, pos.y); maxP.z = std::max(maxP.z, pos.z);
+	}
+	if (cells.empty()) {
+		mazeStatus = "maze empty";
+		Debug::Print("Maze empty", Vector2(5, 60), Debug::RED);
+		return;
+	}
+	Vector3 rawCenter = (minP + maxP) * 0.5f;
+	Vector3 targetCenter = floorCenter + offset;
+	Vector3 translation = targetCenter - rawCenter;
+	for (const auto& c : cells) {
+		Vector3 pos = c.pos + translation;
+		Vector3 halfDims = c.size * 0.5f;
+		GameObject* wall = AddCubeToWorld(pos, halfDims, 0.0f);
+		if (wall && wall->GetRenderObject()) {
+			wall->GetRenderObject()->SetColour(Vector4(0.4f, 0.4f, 0.4f, 1.0f));
+		}
+	}
+	mazeStatus = "cells " + std::to_string(cells.size());
+	Debug::Print("Maze cells: " + std::to_string(cells.size()), Vector2(5, 60), Debug::GREEN);
+}
+
+
 void TutorialGame::BuildSlopeScene() {
 	Vector3 floorPos = Vector3(0, 0, 50);
 
 	AddFloorToWorld(floorPos); //地板
 
+	// 加载迷�（偏移可按需调整�
+
+	LoadMazeFromTxt("Assets/Data/maze.txt", Vector3());
 
 
-	// 随机生成 10 个金币，位置在地板范围内，高度 floorCenter.y + 1.0f
+
+	// 随机生成 10 �金币，位�在地板范围内，高� floorCenter.y + 1.0f
 
 	std::mt19937 rng((uint32_t)std::chrono::system_clock::now().time_since_epoch().count());
 
 	Vector3 margin = floorHalfSize * 0.2f;
+
 	std::uniform_real_distribution<float> distX(floorCenter.x - floorHalfSize.x + margin.x, floorCenter.x + floorHalfSize.x - margin.x);
+
 	std::uniform_real_distribution<float> distZ(floorCenter.z - floorHalfSize.z + margin.z, floorCenter.z + floorHalfSize.z - margin.z);
+
 	for (int i = 0; i < 10; ++i) {
+
 		Vector3 coinPos(distX(rng), floorCenter.y + 1.0f, distZ(rng));
+
 		AddCoinToWorld(coinPos);
+
 	}
 
 
-	// High platform for spawn
+
+// High platform for spawn
 	Vector3 platformHalfSize = Vector3(12.0f, 2.0f, 12.0f);
 	Vector3 platformPos = Vector3(0.0f, 12.0f, -30.0f);
 	AddCubeToWorld(platformPos, platformHalfSize, 0.0f);

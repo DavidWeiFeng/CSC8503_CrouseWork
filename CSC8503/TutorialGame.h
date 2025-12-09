@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <string>
 #include "RenderObject.h"
 #include "PositionConstraint.h"
 #include "NavigationMesh.h"
@@ -73,6 +74,7 @@ namespace NCL {
 			void OnPlayerCaught();
 			void UpdatePendingRemovals(float dt);
 			void UpdateCoinPickups();
+			void LoadMazeFromTxt(const std::string& path, const NCL::Maths::Vector3& offset);
 
 			GameObject* playerObject = nullptr;
 			GameWorld& world;
@@ -165,6 +167,7 @@ namespace NCL {
 			float grabDistance = 0.0f;
 			std::vector<GameObject*> coins;
 			float coinRadius = 0.2f;
+			std::string mazeStatus = "not loaded";
 		};
 	}
 }
