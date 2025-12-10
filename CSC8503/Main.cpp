@@ -84,6 +84,14 @@ int main() {
 	GameTechRenderer* renderer = new GameTechRenderer(*world);
 #endif
 
+	// Resize callback so renderer matches window size (fullscreen toggles, etc)
+	w->SetWindowEventHandler([&](WindowEvent e, uint32_t newW, uint32_t newH) {
+		(void)e;
+		if (renderer) {
+			renderer->OnWindowResize((int)newW, (int)newH);
+		}
+	});
+
 	TutorialGame* g = new TutorialGame(*world, *renderer, *physics);
 
 	w->GetTimer().GetTimeDeltaSeconds(); //Clear the timer so we don't get a larget first dt!

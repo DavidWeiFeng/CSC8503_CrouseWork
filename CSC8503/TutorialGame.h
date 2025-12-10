@@ -96,6 +96,7 @@ namespace NCL {
 			int  menuSelection = 0; // 0 = single, 1 = multiplayer
 			enum class GameMode { Single, Multi };
 			GameMode currentMode = GameMode::Single;
+			bool isFullscreen = false;
 
 			float		forceMagnitude;
 			float		playerMoveForce = 30.0f;

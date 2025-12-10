@@ -83,6 +83,12 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 		navMesh = new NavigationMesh("smalltest.navmesh");
 	}
 
+	// start in borderless fullscreen (no resolution change)
+	if (auto* win = Window::GetWindow()) {
+		isFullscreen = true;
+		win->SetFullScreen(true);
+	}
+
 	InitCamera();
 	InitWorld();
 }
@@ -148,6 +154,13 @@ bool TutorialGame::HandleStartMenu(float dt) {
 		}
 		else { // Quit
 			std::exit(0);
+		}
+	}
+	// Toggle fullscreen with F11 (common shortcut)
+	if (kb->KeyPressed(KeyCodes::F11)) {
+		if (auto* win = Window::GetWindow()) {
+			isFullscreen = !isFullscreen;
+			win->SetFullScreen(isFullscreen);
 		}
 	}
 

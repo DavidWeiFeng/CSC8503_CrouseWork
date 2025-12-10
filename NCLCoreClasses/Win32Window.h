@@ -73,6 +73,10 @@ namespace NCL::Win32Code {
 		bool			showMouse;
 		bool			mouseLeftWindow;
 		bool			maximised;
+		bool			hasWindowedRect = false;
+		LONG			windowedStyle = 0;
+		LONG			windowedExStyle = 0;
+		RECT			windowedRect{};
 
 		Win32Mouse*		winMouse;
 		Win32Keyboard*  winKeyboard;
