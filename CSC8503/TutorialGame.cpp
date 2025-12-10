@@ -23,6 +23,7 @@
 #include <sstream>
 #include <random>
 #include <chrono>
+#include <cstdlib>
 
 using namespace NCL;
 using namespace CSC8503;
@@ -115,12 +116,73 @@ TutorialGame::~TutorialGame()	{
 	navMesh = nullptr;
 }
 
+bool TutorialGame::HandleStartMenu(float dt) {
+	(void)dt;
+	if (!inStartMenu) {
+		return false;
+	}
+	const Keyboard* kb = Window::GetKeyboard();
+	const char* items[] = {
+		"[1] Single Player",
+		"[2] Multi Player",
+		"[Q] Quit Game"
+	};
+	const int itemCount = 3;
+
+	if (kb->KeyPressed(KeyCodes::W) || kb->KeyPressed(KeyCodes::UP)) {
+		menuSelection = (menuSelection + itemCount - 1) % itemCount;
+	}
+	if (kb->KeyPressed(KeyCodes::S) || kb->KeyPressed(KeyCodes::DOWN)) {
+		menuSelection = (menuSelection + 1) % itemCount;
+	}
+	if (kb->KeyPressed(KeyCodes::RETURN) || kb->KeyPressed(KeyCodes::SPACE)) {
+		if (menuSelection == 0) {
+			currentMode = GameMode::Single;
+			inStartMenu = false;
+			InitWorld();
+		}
+		else if (menuSelection == 1) {
+			currentMode = GameMode::Multi; // placeholder, uses same world for now
+			inStartMenu = false;
+			InitWorld();
+		}
+		else { // Quit
+			std::exit(0);
+		}
+	}
+
+	// Draw menu overlay
+	Debug::Print("============================", Vector2(15, 80), Debug::CYAN);
+	Debug::Print("CSC8503 GAME", Vector2(40, 74), Debug::WHITE);
+	Debug::Print("============================", Vector2(15, 70), Debug::CYAN);
+	Debug::Print("GAME MODE:", Vector2(38, 64), Debug::CYAN);
+
+	float startY = 58.0f;
+	float step = 4.0f;
+	for (int i = 0; i < itemCount; ++i) {
+		Vector4 col = (i == menuSelection) ? Debug::YELLOW : Debug::WHITE;
+		std::string line = std::string(i == menuSelection ? "> " : "  ") + items[i];
+		Debug::Print(line, Vector2(32, startY - step * i), col);
+	}
+
+	Debug::Print("----------------------------", Vector2(15, 30), Debug::CYAN);
+	Debug::Print("CONTROLS:", Vector2(15, 26), Debug::WHITE);
+	Debug::Print("WASD: Move   SPACE: Jump   RMB: Grab", Vector2(15, 23), Debug::WHITE);
+	Debug::Print("Use W/S to navigate, ENTER to select", Vector2(15, 18), Debug::WHITE);
+
+	return true; // block game update until a choice is made
+}
+
 /**
  * @brief 濠甸敐鍛绠伴柟鑸靛哺瀵瀵告稒蓱閻撳┑鐐存尭閹诧繝宕瑰▎鎾寸劵闁哄嫬绻掔敮鍡涙煏
  * @param dt 闁汇垼搴＄偛鍊垮婂氬级閹寸姴浠遍柛锝嗘そ婵
  */
 void TutorialGame::UpdateGame(float dt) {
 	float fps = dt > 1e-6f ? 1.0f / dt : 0.0f;
+
+	if (HandleStartMenu(dt)) {
+		return;
+	}
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
 		InitWorld(); //We can reset the simulation at any time with F1

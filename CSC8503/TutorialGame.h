@@ -35,6 +35,7 @@ namespace NCL {
 			void InitCamera();
 
 			void InitWorld();
+			bool HandleStartMenu(float dt);
 
 			/*
 			These are some of the world/object creation functions I created when testing the functionality
@@ -91,6 +92,10 @@ namespace NCL {
 
 			bool useGravity;
 			bool inSelectionMode;
+			bool inStartMenu = true;
+			int  menuSelection = 0; // 0 = single, 1 = multiplayer
+			enum class GameMode { Single, Multi };
+			GameMode currentMode = GameMode::Single;
 
 			float		forceMagnitude;
 			float		playerMoveForce = 30.0f;
