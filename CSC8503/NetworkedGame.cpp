@@ -57,6 +57,7 @@ void NetworkedGame::StartAsClient(char a, char b, char c, char d) {
 	thisClient->RegisterPacketHandler(Full_State, this);
 	thisClient->RegisterPacketHandler(Player_Connected, this);
 	thisClient->RegisterPacketHandler(Player_Disconnected, this);
+	thisClient->RegisterPacketHandler(Message, this); // handshake / misc messages
 
 	StartLevel();
 }
@@ -116,7 +117,7 @@ void NetworkedGame::BroadcastSnapshot(bool deltaFrame) {
 		}
 		int playerState = 0;
 		GamePacket* newPacket = nullptr;
-		if (o->WritePacket(&newPacket, deltaFrame, playerState)) {
+		if (o->WritePacket(&newPacket, false, playerState)) { // force full packets until delta ack implemented
 			thisServer->SendGlobalPacket(*newPacket);
 			delete newPacket;
 		}
@@ -193,6 +194,16 @@ void NetworkedGame::StartLevel() {
 }
 
 void NetworkedGame::ReceivePacket(int type, GamePacket* payload, int source) {
+	auto makeClientProxyKinematic = [](GameObject* obj) {
+		if (!obj) return;
+		if (PhysicsObject* phys = obj->GetPhysicsObject()) {
+			phys->SetInverseMass(0.0f); // make it static on client; server drives movement
+			phys->ClearForces();
+			phys->SetLinearVelocity(Vector3());
+			phys->SetAngularVelocity(Vector3());
+		}
+	};
+
 	if (type == Full_State) {
 		FullPacket* realPacket = (FullPacket*)payload;
 		// Check if we already have this object
@@ -209,11 +220,13 @@ void NetworkedGame::ReceivePacket(int type, GamePacket* payload, int source) {
 			std::cout << "Client: Received new object " << realPacket->objectID << ", spawning proxy.\n";
 			GameObject* obj = AddPlayerToWorld(realPacket->fullState.position);
 			obj->SetNetworkObject(new NetworkObject(*obj, realPacket->objectID));
+			makeClientProxyKinematic(obj);
 			networkObjects.push_back(obj->GetNetworkObject());
 			
 			// If this object matches our assigned ID, it's US! Bind camera.
 			if (localNetworkID == realPacket->objectID) {
 				playerObject = obj;
+				makeClientProxyKinematic(playerObject);
 				std::cout << "Client: Bound camera to local player ID " << localNetworkID << std::endl;
 			}
 		}
@@ -257,6 +270,22 @@ void NetworkedGame::OnPlayerCollision(NetworkPlayer* a, NetworkPlayer* b) {
 }
 
 void NetworkedGame::UpdateAsServer(float dt) {
+	auto clampPlayerToSpawn = [this](GameObject* player, int playerID) {
+		if (!player) return;
+		Vector3 pos = player->GetTransform().GetPosition();
+		float floorY = floorCenter.y + floorHalfSize.y;
+		if (pos.y < floorY - 10.0f) { // 掉到地板以下太远，拉回出生点
+			Vector3 respawn = playerSpawnPos;
+			respawn.x += 3.0f * float(playerID);
+			player->GetTransform().SetPosition(respawn);
+			if (auto* phys = player->GetPhysicsObject()) {
+				phys->SetLinearVelocity(Vector3());
+				phys->SetAngularVelocity(Vector3());
+				phys->ClearForces();
+			}
+		}
+	};
+
 	// Apply client inputs
 	for (auto const& [playerID, inputPacket] : latestClientInput) {
 		GameObject* player = nullptr;
@@ -266,7 +295,10 @@ void NetworkedGame::UpdateAsServer(float dt) {
 		else {
 			// If player not found, spawn them (initial connection)
 			std::cout << "Server: Spawning player for client " << playerID << std::endl;
-			player = AddPlayerToWorld(Vector3(0, 5, 0));
+			Vector3 spawnPos = playerSpawnPos;
+			// 防止多人重叠，按 peerID 稍微偏移
+			spawnPos.x += 3.0f * float(playerID);
+			player = AddPlayerToWorld(spawnPos);
 			int newNetID = 1000 + playerID; // Assign a unique Network ID
 			player->SetNetworkObject(new NetworkObject(*player, newNetID));
 			networkObjects.push_back(player->GetNetworkObject());
@@ -281,6 +313,7 @@ void NetworkedGame::UpdateAsServer(float dt) {
 
 		if (player) {
 			MovePlayer(player, dt, inputPacket.keyW, inputPacket.keyA, inputPacket.keyS, inputPacket.keyD, inputPacket.keySpace, inputPacket.cameraYaw);
+			clampPlayerToSpawn(player, playerID);
 		}
 	}
 	latestClientInput.clear(); // Clear inputs after processing
@@ -291,6 +324,6 @@ void NetworkedGame::UpdateAsServer(float dt) {
 		packetsToSnapshot = 5;
 	}
 	else {
-		BroadcastSnapshot(true);
+		BroadcastSnapshot(false); // still send full packets for stability
 	}
 }
