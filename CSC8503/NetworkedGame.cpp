@@ -8,6 +8,7 @@
 #include "Window.h"
 #include "Matrix.h"
 #include "Quaternion.h"
+#include <chrono>
 
 #define COLLISION_MSG 30
 #define PLAYER_ID_MSG 31 // Handshake message
@@ -86,6 +87,17 @@ void NetworkedGame::UpdateGame(float dt) {
 	}
 	if (!inStartMenu && !thisClient && Window::GetKeyboard()->KeyPressed(KeyCodes::F10)) {
 		StartAsClient(127,0,0,1);
+	}
+
+	// 客户端插值平滑显示
+	if (thisClient) {
+		double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		double interpBack = 0.1; // 100ms 回放窗口
+		for (auto* netObj : networkObjects) {
+			if (netObj) {
+				netObj->ClientInterpolate(now, interpBack);
+			}
+		}
 	}
 
 	TutorialGame::UpdateGame(dt);

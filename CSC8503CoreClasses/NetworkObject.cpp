@@ -1,16 +1,25 @@
 #include <algorithm>
+#include <chrono>
 #include "NetworkObject.h"
 #include "./enet/enet.h"
+
 using namespace NCL;
 using namespace CSC8503;
 
-NetworkObject::NetworkObject(GameObject& o, int id) : object(o)	{
+namespace {
+	double NowSeconds() {
+		using namespace std::chrono;
+		return duration<double>(steady_clock::now().time_since_epoch()).count();
+	}
+}
+
+NetworkObject::NetworkObject(GameObject& o, int id) : object(o) {
 	deltaErrors = 0;
 	fullErrors  = 0;
 	networkID   = id;
 }
 
-NetworkObject::~NetworkObject()	{
+NetworkObject::~NetworkObject() {
 }
 
 bool NetworkObject::ReadPacket(GamePacket& p) {
@@ -20,7 +29,7 @@ bool NetworkObject::ReadPacket(GamePacket& p) {
 	if (p.type == Full_State) {
 		return ReadFullPacket((FullPacket&)p);
 	}
-	return false; //this isn't a packet we care about!
+	return false;
 }
 
 bool NetworkObject::WritePacket(GamePacket** p, bool deltaFrame, int stateID) {
@@ -31,16 +40,16 @@ bool NetworkObject::WritePacket(GamePacket** p, bool deltaFrame, int stateID) {
 	}
 	return WriteFullPacket(p);
 }
-//Client objects recieve these packets
+
 bool NetworkObject::ReadDeltaPacket(DeltaPacket &p) {
 	if (p.fullID != lastFullState.stateID) {
-		deltaErrors++; //cant use this!
+		deltaErrors++;
 		return false;
 	}
 	UpdateStateHistory(p.fullID);
 
-	Vector3		fullPos			= lastFullState.position;
-	Quaternion  fullOrientation = lastFullState.orientation;
+	Vector3 fullPos = lastFullState.position;
+	Quaternion fullOrientation = lastFullState.orientation;
 
 	fullPos.x += p.pos[0];
 	fullPos.y += p.pos[1];
@@ -53,20 +62,37 @@ bool NetworkObject::ReadDeltaPacket(DeltaPacket &p) {
 
 	object.GetTransform().SetPosition(fullPos);
 	object.GetTransform().SetOrientation(fullOrientation);
+
+	NetworkObject::TimedState tsDelta;
+	tsDelta.state.position = fullPos;
+	tsDelta.state.orientation = fullOrientation;
+	tsDelta.state.stateID = p.fullID;
+	tsDelta.timeSeconds = NowSeconds();
+	bufferedStates.push_back(tsDelta);
+	if (bufferedStates.size() > 60) {
+		bufferedStates.pop_front();
+	}
 	return true;
 }
 
 bool NetworkObject::ReadFullPacket(FullPacket &p) {
 	if (p.fullState.stateID < lastFullState.stateID) {
-		return false; //received an 'old' packet, ignore!
+		return false;
 	}
 	lastFullState = p.fullState;
 
 	object.GetTransform().SetPosition(lastFullState.position);
 	object.GetTransform().SetOrientation(lastFullState.orientation);
 
-	stateHistory.emplace_back(lastFullState);
+	NetworkObject::TimedState tsFull;
+	tsFull.state = lastFullState;
+	tsFull.timeSeconds = NowSeconds();
+	bufferedStates.push_back(tsFull);
+	if (bufferedStates.size() > 60) {
+		bufferedStates.pop_front();
+	}
 
+	stateHistory.emplace_back(lastFullState);
 	return true;
 }
 
@@ -74,14 +100,14 @@ bool NetworkObject::WriteDeltaPacket(GamePacket**p, int stateID) {
 	DeltaPacket* dp = new DeltaPacket();
 	NetworkState state;
 	if (!GetNetworkState(stateID, state)) {
-		return false; //cant find this state!
+		return false;
 	}
 
 	dp->fullID = stateID;
 	dp->objectID = networkID;
 
-	Vector3		currentPos = object.GetTransform().GetPosition();
-	Quaternion  currentOrientation = object.GetTransform().GetOrientation();
+	Vector3 currentPos = object.GetTransform().GetPosition();
+	Quaternion currentOrientation = object.GetTransform().GetOrientation();
 
 	currentPos -= state.position;
 	currentOrientation -= state.orientation;
@@ -102,14 +128,12 @@ bool NetworkObject::WriteDeltaPacket(GamePacket**p, int stateID) {
 bool NetworkObject::WriteFullPacket(GamePacket**p) {
 	FullPacket* fp = new FullPacket();
 
-	fp->objectID		= networkID;
-	fp->fullState.position		= object.GetTransform().GetPosition();
-	fp->fullState.orientation	= object.GetTransform().GetOrientation();
-	fp->fullState.stateID		= lastFullState.stateID++;
+	fp->objectID = networkID;
+	fp->fullState.position = object.GetTransform().GetPosition();
+	fp->fullState.orientation = object.GetTransform().GetOrientation();
+	fp->fullState.stateID = lastFullState.stateID++;
 
-	// Track history so we can generate delta packets later
 	stateHistory.emplace_back(fp->fullState);
-	// Keep history from growing unbounded
 	constexpr size_t maxHistory = 90;
 	if (stateHistory.size() > maxHistory) {
 		stateHistory.erase(stateHistory.begin(), stateHistory.begin() + (stateHistory.size() - maxHistory));
@@ -139,4 +163,41 @@ void NetworkObject::UpdateStateHistory(int minID) {
 			stateHistory.begin(), stateHistory.end(),
 			[minID](const NetworkState& s) { return s.stateID < minID; }),
 		stateHistory.end());
+}
+
+void NetworkObject::ClientInterpolate(double nowSeconds, double interpBackSeconds) {
+	if (bufferedStates.empty()) {
+		return;
+	}
+
+	double targetTime = nowSeconds - interpBackSeconds;
+
+	while (bufferedStates.size() >= 2 && bufferedStates[1].timeSeconds < targetTime - 1.0) {
+		bufferedStates.pop_front();
+	}
+
+	NetworkObject::TimedState a = bufferedStates.front();
+	NetworkObject::TimedState b = bufferedStates.back();
+	for (size_t i = 1; i < bufferedStates.size(); ++i) {
+		if (bufferedStates[i].timeSeconds >= targetTime) {
+			a = bufferedStates[i - 1];
+			b = bufferedStates[i];
+			break;
+		}
+	}
+
+	double span = b.timeSeconds - a.timeSeconds;
+	float t = 0.0f;
+	if (span > 1e-5) {
+		t = float((targetTime - a.timeSeconds) / span);
+		t = std::clamp(t, 0.0f, 1.0f);
+	}
+
+	Vector3 pos = a.state.position * (1.0f - t) + b.state.position * t;
+	Quaternion qa = a.state.orientation;
+	Quaternion qb = b.state.orientation;
+	Quaternion q = Quaternion::Slerp(qa, qb, t);
+
+	object.GetTransform().SetPosition(pos);
+	object.GetTransform().SetOrientation(q);
 }

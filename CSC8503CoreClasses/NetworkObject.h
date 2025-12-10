@@ -2,6 +2,8 @@
 #include "GameObject.h"
 #include "NetworkBase.h"
 #include "NetworkState.h"
+#include <deque>
+#include <chrono>
 
 namespace NCL::CSC8503 {
 	class GameObject;
@@ -51,6 +53,9 @@ namespace NCL::CSC8503 {
 
 		int GetNetworkID() const { return networkID; }
 
+		// 客户端插值调用：使用收到的历史状态队列平滑到当前显示时间
+		void ClientInterpolate(double nowSeconds, double interpBackSeconds = 0.1);
+
 	protected:
 
 		NetworkState& GetLatestNetworkState();
@@ -68,6 +73,11 @@ namespace NCL::CSC8503 {
 		NetworkState lastFullState;
 
 		std::vector<NetworkState> stateHistory;
+		struct TimedState {
+			NetworkState state;
+			double       timeSeconds;
+		};
+		std::deque<TimedState> bufferedStates; // 按接收时间排序的状态，用于客户端插值
 
 		int deltaErrors;
 		int fullErrors;
