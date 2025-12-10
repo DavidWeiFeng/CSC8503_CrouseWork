@@ -783,11 +783,6 @@ GameObject* TutorialGame::AddEnemyToWorld(const Vector3& position) {
 GameObject* TutorialGame::AddCoinToWorld(const Vector3& position) {
 	float radius = coinRadius;
 	Vector3 spawn = position;
-	// Ensure it rests on default floor (half-height 1.0) instead of embedding
-	float floorTop = 1.2f;
-	if (spawn.y < floorTop + radius) {
-		spawn.y = floorTop + radius + 0.05f;
-	}
 	GameObject* coin = new GameObject("Coin");
 	Vector3 sphereSize = Vector3(radius, radius, radius);
 	SphereVolume* vol = new SphereVolume(radius);
@@ -888,11 +883,21 @@ void TutorialGame::BuildSlopeScene() {
 	std::uniform_real_distribution<float> distZ(floorCenter.z - floorHalfSize.z + margin.z, floorCenter.z + floorHalfSize.z - margin.z);
 
 	for (int i = 0; i < 15; ++i) {
-
-		Vector3 coinPos(distX(rng), floorCenter.y + 1.0f, distZ(rng));
+		float coinY = floorCenter.y + 1.2f + coinRadius + 0.05f;
+		Vector3 coinPos(distX(rng), coinY, distZ(rng));
 
 		AddCoinToWorld(coinPos);
 
+	}
+
+	if (mazeHalfSize.x > 0.0f || mazeHalfSize.z > 0.0f) {
+		std::uniform_real_distribution<float> distMazeX(mazeCenter.x - mazeHalfSize.x, mazeCenter.x + mazeHalfSize.x);
+		std::uniform_real_distribution<float> distMazeZ(mazeCenter.z - mazeHalfSize.z, mazeCenter.z + mazeHalfSize.z);
+
+		for (int i = 0; i < 20; ++i) {
+			Vector3 coinPos(distMazeX(rng), -2.0f, distMazeZ(rng));
+			AddCoinToWorld(coinPos);
+		}
 	}
 
 
