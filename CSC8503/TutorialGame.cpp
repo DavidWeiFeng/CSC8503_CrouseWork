@@ -109,6 +109,8 @@ bool TutorialGame::IsPlayerGrounded() const {
 TutorialGame::~TutorialGame()	{
 	delete enemyAI;
 	enemyAI = nullptr;
+	delete mazeEnemyAI;
+	mazeEnemyAI = nullptr;
 	delete navMesh;
 	navMesh = nullptr;
 }
@@ -237,6 +239,10 @@ void TutorialGame::InitWorld() {
 	physics.Clear();
 	playerObject = nullptr;
 	playerScore = 0;
+	mazeMin = Vector3();
+	mazeMax = Vector3();
+	mazeCenter = Vector3();
+	mazeHalfSize = Vector3();
 	mazeStatus = "not loaded";
 	selectionObject = nullptr;
 	pushableCube = nullptr;
@@ -250,6 +256,11 @@ void TutorialGame::InitWorld() {
 		enemyAI = nullptr;
 	}
 	enemyObject = nullptr;
+	if (mazeEnemyAI) {
+		delete mazeEnemyAI;
+		mazeEnemyAI = nullptr;
+	}
+	mazeEnemyObject = nullptr;
 	physics.UseGravity(true);
 	BuildSlopeScene();
 }
@@ -665,12 +676,45 @@ void TutorialGame::InitEnemyAgent(const Vector3& pos) {
 	}
 }
 
-void TutorialGame::UpdateEnemyAI(float dt) {
-	if (!enemyAI || !navMesh || !enemyObject || !playerObject) {
+void TutorialGame::InitMazeEnemyAgent(const Vector3& pos) {
+	if (mazeEnemyObject) {
 		return;
 	}
-	enemyAI->SetTarget(playerObject);
-	enemyAI->Update(dt);
+	mazeEnemyObject = AddEnemyToWorld(pos);
+	if (mazeEnemyAI) {
+		delete mazeEnemyAI;
+		mazeEnemyAI = nullptr;
+	}
+	if (navMesh) {
+		EnemyAI::Params params;
+		params.moveSpeed = 8.0f;
+		params.waypointTolerance = 0.5f;
+		params.chaseDistance = 80.0f;
+		params.loseDistance = 120.0f;
+		params.repathPlayerDelta = 3.0f;
+		params.stuckTime = 1.25f;
+		params.stuckMoveEpsilon = 0.05f;
+		params.recoverDuration = 0.6f;
+		params.pathRefreshTime = 1.0f;
+		params.catchDistance = 3.0f;
+		params.floorMin = mazeMin - Vector3(0, -1.0f, 0);
+		params.floorMax = mazeMax + Vector3(0, 2.0f, 0);
+		mazeEnemyAI = new EnemyAI(*navMesh, params);
+		mazeEnemyAI->SetOwner(mazeEnemyObject);
+		mazeEnemyAI->SetTarget(playerObject);
+		mazeEnemyAI->SetOnCatch([this]() { OnPlayerCaught(); });
+	}
+}
+
+void TutorialGame::UpdateEnemyAI(float dt) {
+	if (enemyAI && enemyObject && playerObject) {
+		enemyAI->SetTarget(playerObject);
+		enemyAI->Update(dt);
+	}
+	if (mazeEnemyAI && mazeEnemyObject && playerObject) {
+		mazeEnemyAI->SetTarget(playerObject);
+		mazeEnemyAI->Update(dt);
+	}
 }
 GameObject* TutorialGame::AddFloorToWorld(const Vector3& position) {
 	Vector3 floorSize = Vector3(30, 0.5f, 30);
@@ -733,6 +777,8 @@ void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offse
 	}
 	struct Cell { Vector3 pos; Vector3 size; };
 	std::vector<Cell> cells;
+	Vector3 minP(1e9f, 1e9f, 1e9f);
+	Vector3 maxP(-1e9f, -1e9f, -1e9f);
 	std::string line;
 	while (std::getline(file, line)) {
 		if (line.empty()) {
@@ -743,13 +789,21 @@ void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offse
 		if (!(iss >> px >> py >> pz >> sx >> sy >> sz)) {
 			continue;
 		}
-		cells.push_back({ Vector3(px, py, pz), Vector3(sx, sy, sz) });
+		Vector3 pos(px, py, pz);
+		Vector3 worldPos = pos + offset;
+		minP.x = std::min(minP.x, worldPos.x); minP.y = std::min(minP.y, worldPos.y); minP.z = std::min(minP.z, worldPos.z);
+		maxP.x = std::max(maxP.x, worldPos.x); maxP.y = std::max(maxP.y, worldPos.y); maxP.z = std::max(maxP.z, worldPos.z);
+		cells.push_back({ pos, Vector3(sx, sy, sz) });
 	}
 	if (cells.empty()) {
 		mazeStatus = "maze empty";
 		Debug::Print("Maze empty", Vector2(5, 60), Debug::RED);
 		return;
 	}
+	mazeMin = minP;
+	mazeMax = maxP;
+	mazeCenter = (mazeMin + mazeMax) * 0.5f;
+	mazeHalfSize = (mazeMax - mazeMin) * 0.5f;
 	for (const auto& c : cells) {
 		Vector3 pos = c.pos + offset; // use positions from file (plus optional offset)
 		Vector3 halfDims = c.size * 0.5f;
@@ -772,7 +826,12 @@ void TutorialGame::BuildSlopeScene() {
 
 	LoadMazeFromTxt("Assets/Data/maze.txt", Vector3());
 
-
+	// Spawn maze enemy using same AI settings as floor enemy
+	if (mazeHalfSize.x > 0.0f || mazeHalfSize.z > 0.0f) {
+		Vector3 spawn = mazeCenter;
+		spawn.y = mazeMax.y + 2.5f;
+		InitMazeEnemyAgent(spawn);
+	}
 
 	// 闅忔満鐢熸垚 10 涓閲戝竵锛屼綅缃鍦ㄥ湴鏉胯寖鍥村唴锛岄珮搴 floorCenter.y + 1.0f
 
@@ -854,6 +913,15 @@ void TutorialGame::BuildSlopeScene() {
 		};
 		enemyAI->SetPatrolPoints(patrol);
 	}
+	if (mazeEnemyAI && (mazeHalfSize.x > 0.0f || mazeHalfSize.z > 0.0f)) {
+		std::vector<Vector3> patrol = {
+			mazeCenter + Vector3( mazeHalfSize.x * 0.8f, 0.0f,  mazeHalfSize.z * 0.8f),
+			mazeCenter + Vector3(-mazeHalfSize.x * 0.8f, 0.0f,  mazeHalfSize.z * 0.8f),
+			mazeCenter + Vector3(-mazeHalfSize.x * 0.8f, 0.0f, -mazeHalfSize.z * 0.8f),
+			mazeCenter + Vector3( mazeHalfSize.x * 0.8f, 0.0f, -mazeHalfSize.z * 0.8f),
+		};
+		mazeEnemyAI->SetPatrolPoints(patrol);
+	}
 }
 
 void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
@@ -890,6 +958,9 @@ void TutorialGame::OnPlayerCaught() {
 	// reset enemy pathing after catch
 	if (enemyAI) {
 		enemyAI->Reset();
+	}
+	if (mazeEnemyAI) {
+		mazeEnemyAI->Reset();
 	}
 }
 

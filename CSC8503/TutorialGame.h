@@ -58,6 +58,7 @@ namespace NCL {
 			void HandleGrab();
 			bool IsPlayerGrounded() const;
 			void InitEnemyAgent(const NCL::Maths::Vector3& pos);
+			void InitMazeEnemyAgent(const NCL::Maths::Vector3& pos);
 			void UpdateEnemyAI(float dt);
 
 			GameObject* AddFloorToWorld(const NCL::Maths::Vector3& position);
@@ -117,6 +118,10 @@ namespace NCL {
 			float gateAnimT = 0.0f;
 			NCL::Maths::Vector3 floorCenter = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 floorHalfSize = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 mazeMin = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 mazeMax = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 mazeCenter = NCL::Maths::Vector3();
+			NCL::Maths::Vector3 mazeHalfSize = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 playerSpawnPos = NCL::Maths::Vector3();
 			float gateSlideDistance = 6.0f;
 			NCL::Maths::Vector3 gateLeftClosedPos  = NCL::Maths::Vector3();
@@ -129,6 +134,8 @@ namespace NCL {
 			
 			GameObject* enemyObject = nullptr;
 			EnemyAI* enemyAI = nullptr;
+			GameObject* mazeEnemyObject = nullptr;
+			EnemyAI* mazeEnemyAI = nullptr;
 			NavigationMesh* navMesh = nullptr;
 
 			GameObject* selectionObject = nullptr;
