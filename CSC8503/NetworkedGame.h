@@ -8,6 +8,22 @@ namespace NCL::CSC8503 {
 	class NetworkPlayer;
 	class NetworkObject;
 
+	struct PlayerInputPacket : public GamePacket {
+		int		playerID;
+		bool	keyW;
+		bool	keyA;
+		bool	keyS;
+		bool	keyD;
+		bool	keySpace;
+		bool	keyGrab;
+		float	cameraYaw;
+
+		PlayerInputPacket() {
+			type = BasicNetworkMessages::Player_Input;
+			size = sizeof(PlayerInputPacket) - sizeof(GamePacket);
+		}
+	};
+
 	class NetworkedGame : public TutorialGame, public PacketReceiver 
 	{
 	public:

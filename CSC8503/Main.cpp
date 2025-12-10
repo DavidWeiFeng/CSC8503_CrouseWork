@@ -92,7 +92,8 @@ int main() {
 		}
 	});
 
-	TutorialGame* g = new TutorialGame(*world, *renderer, *physics);
+	//TutorialGame* g = new TutorialGame(*world, *renderer, *physics);
+	NetworkedGame* g = new NetworkedGame(*world, *renderer, *physics);
 
 	w->GetTimer().GetTimeDeltaSeconds(); //Clear the timer so we don't get a larget first dt!
 	while (w->UpdateWindow() && !Window::GetKeyboard()->KeyDown(KeyCodes::ESCAPE)) {

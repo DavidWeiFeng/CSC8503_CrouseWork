@@ -25,6 +25,24 @@ GameObject::~GameObject()
 	delete networkObject;
 }
 
+std::string GameObject::GetName() const {
+	return name;
+}
+
+void GameObject::SetRenderObject(RenderObject* newObject) {
+	if (renderObject) {
+		delete renderObject;
+	}
+	renderObject = newObject;
+}
+
+void GameObject::SetPhysicsObject(PhysicsObject* newObject) {
+	if (physicsObject) {
+		delete physicsObject;
+	}
+	physicsObject = newObject;
+}
+
 bool GameObject::GetBroadphaseAABB(Vector3&outSize) const 
 {
 	if (!boundingVolume) {

@@ -44,30 +44,21 @@ namespace NCL::CSC8503 {
 			return physicsObject;
 		}
 
-		NetworkObject* GetNetworkObject() const 
-		{
-			return networkObject;
-		}
+		std::string GetName() const; // Added
+		void SetRenderObject(RenderObject* newObject); // Added
+		void SetPhysicsObject(PhysicsObject* newObject); // Added
 
-		void SetRenderObject(RenderObject* newObject) 
-		{
-			renderObject = newObject;
-		}
-
-		void SetPhysicsObject(PhysicsObject* newObject) 
-		{
-			physicsObject = newObject;
-		}
-
-		const std::string& GetName() const 
-		{
-			return name;
-		}
-
-		virtual void OnCollisionBegin(GameObject* otherObject) {
-			//std::cout << "OnCollisionBegin event occured!\n";
-		}
-
+		        NetworkObject* GetNetworkObject() const {
+		            return networkObject;
+		        }
+		
+		        void SetNetworkObject(NetworkObject* n) {
+		            networkObject = n;
+		        }
+		
+		        virtual void OnCollisionBegin(GameObject* otherObject) {
+		            //std::cout << "OnCollisionBegin event occured!\n";
+		        }
 		virtual void OnCollisionEnd(GameObject* otherObject) {
 			//std::cout << "OnCollisionEnd event occured!\n";
 		}
