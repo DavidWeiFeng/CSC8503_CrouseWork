@@ -90,7 +90,7 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 	}
 
 	InitCamera();
-	InitWorld();
+	//InitWorld();
 }
 
 bool TutorialGame::IsPlayerGrounded() const {
@@ -165,23 +165,21 @@ bool TutorialGame::HandleStartMenu(float dt) {
 	}
 
 	// Draw menu overlay
-	Debug::Print("============================", Vector2(15, 80), Debug::CYAN);
-	Debug::Print("CSC8503 GAME", Vector2(40, 74), Debug::WHITE);
-	Debug::Print("============================", Vector2(15, 70), Debug::CYAN);
-	Debug::Print("GAME MODE:", Vector2(38, 64), Debug::CYAN);
+	Debug::Print("CSC8503 Coursework", Vector2(30, 80), Debug::CYAN);
+	
+	Debug::Print("Select Game Mode:", Vector2(35, 65), Debug::WHITE);
 
-	float startY = 58.0f;
-	float step = 4.0f;
+	float startY = 55.0f;
+	float step = 5.0f;
 	for (int i = 0; i < itemCount; ++i) {
 		Vector4 col = (i == menuSelection) ? Debug::YELLOW : Debug::WHITE;
 		std::string line = std::string(i == menuSelection ? "> " : "  ") + items[i];
-		Debug::Print(line, Vector2(32, startY - step * i), col);
+		Debug::Print(line, Vector2(35, startY - step * i), col);
 	}
 
-	Debug::Print("----------------------------", Vector2(15, 30), Debug::CYAN);
-	Debug::Print("CONTROLS:", Vector2(15, 26), Debug::WHITE);
-	Debug::Print("WASD: Move   SPACE: Jump   RMB: Grab", Vector2(15, 23), Debug::WHITE);
-	Debug::Print("Use W/S to navigate, ENTER to select", Vector2(15, 18), Debug::WHITE);
+	Debug::Print("Controls:", Vector2(5, 20), Debug::CYAN);
+	Debug::Print("Move: WASD | Jump: SPACE | Grab: RMB", Vector2(5, 15), Debug::WHITE);
+	Debug::Print("Menu: UP/DOWN to navigate, ENTER to select", Vector2(5, 10), Debug::WHITE);
 
 	return true; // block game update until a choice is made
 }
