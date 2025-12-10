@@ -68,6 +68,10 @@ NavigationMesh::~NavigationMesh()
 }
 
 bool NavigationMesh::FindPath(const Vector3& from, const Vector3& to, NavigationPath& outPath) {
+	return FindPath(from, to, outPath, true);
+}
+
+bool NavigationMesh::FindPath(const Vector3& from, const Vector3& to, NavigationPath& outPath, bool useFunnel) {
 	outPath.Clear();
 
 	const NavTri* startTri	= GetTriForPosition(from);
@@ -124,113 +128,125 @@ bool NavigationMesh::FindPath(const Vector3& from, const Vector3& to, Navigation
 			for (int n = endIdx; n != -1; n = parent[n]) {
 				triPath.push_back(n);
 			}
-			// Funnel smoothing on triangle strip
-			// Build portals (shared edges)
-			struct Portal { Vector3 left; Vector3 right; };
-			std::vector<Portal> portals;
-			portals.reserve(triPath.size());
-
-			Vector3 startPos = from;
-			Vector3 endPos   = to;
-
-			// reverse triPath to start -> end
 			std::reverse(triPath.begin(), triPath.end());
+			
+			// DEBUG: Print triPath size
+			// std::cout << "FindPath TriPath Size: " << triPath.size() << " UseFunnel: " << useFunnel << std::endl;
 
-			// helper to find shared edge
-			auto sharedEdge = [&](int a, int b, Vector3& v0, Vector3& v1)->bool {
-				int shared[2] = { -1, -1 };
-				int count = 0;
-				for (int i = 0; i < 3; ++i) {
-					int idxA = allTris[a].indices[i];
-					for (int j = 0; j < 3; ++j) {
-						if (idxA == allTris[b].indices[j]) {
-							shared[count++] = idxA;
-							if (count == 2) break;
+			if (useFunnel) {
+				// Funnel smoothing on triangle strip
+				// Build portals (shared edges)
+				struct Portal { Vector3 left; Vector3 right; };
+				std::vector<Portal> portals;
+				portals.reserve(triPath.size());
+
+				Vector3 startPos = from;
+				Vector3 endPos = to;
+
+				// helper to find shared edge
+				auto sharedEdge = [&](int a, int b, Vector3& v0, Vector3& v1)->bool {
+					int shared[2] = { -1, -1 };
+					int count = 0;
+					for (int i = 0; i < 3; ++i) {
+						int idxA = allTris[a].indices[i];
+						for (int j = 0; j < 3; ++j) {
+							if (idxA == allTris[b].indices[j]) {
+								shared[count++] = idxA;
+								if (count == 2) break;
+							}
+						}
+						if (count == 2) break;
+					}
+					if (count < 2) return false;
+					v0 = allVerts[shared[0]];
+					v1 = allVerts[shared[1]];
+					return true;
+				};
+
+				// Build portal list
+				portals.push_back({ startPos, startPos });
+				for (size_t i = 0; i + 1 < triPath.size(); ++i) {
+					Vector3 a, b;
+					if (sharedEdge(triPath[i], triPath[i + 1], a, b)) {
+						// order edge so that left/right is consistent w.r.t movement direction
+						Vector3 dir = allTris[triPath.back()].centroid - startPos;
+						Vector3 edgeDir = b - a;
+						Vector3 cross = Vector::Cross(edgeDir, dir);
+						if (cross.y < 0.0f) {
+							portals.push_back({ b, a });
+						}
+						else {
+							portals.push_back({ a, b });
 						}
 					}
-					if (count == 2) break;
 				}
-				if (count < 2) return false;
-				v0 = allVerts[shared[0]];
-				v1 = allVerts[shared[1]];
-				return true;
-			};
+				portals.push_back({ endPos, endPos });
 
-			// Build portal list
-			portals.push_back({ startPos, startPos });
-			for (size_t i = 0; i + 1 < triPath.size(); ++i) {
-				Vector3 a, b;
-				if (sharedEdge(triPath[i], triPath[i + 1], a, b)) {
-					// order edge so that left/right is consistent w.r.t movement direction
-					Vector3 dir = allTris[triPath.back()].centroid - startPos;
-					Vector3 edgeDir = b - a;
-					Vector3 cross = Vector::Cross(edgeDir, dir);
-					if (cross.y < 0.0f) {
-						portals.push_back({ b, a });
+				// Funnel algorithm
+				std::vector<Vector3> smooth;
+				size_t apexIndex = 0, leftIndex = 0, rightIndex = 0;
+				Vector3 apex = portals[0].left;
+				Vector3 left = portals[0].left;
+				Vector3 right = portals[0].right;
+				auto triArea2 = [](const Vector3& a, const Vector3& b, const Vector3& c) {
+					return (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+				};
+				auto samePoint = [](const Vector3& a, const Vector3& b) {
+					return Vector::Length(a - b) < 1e-4f;
+				};
+				for (size_t i = 1; i < portals.size(); ++i) {
+					Vector3 pLeft = portals[i].left;
+					Vector3 pRight = portals[i].right;
+					// update right
+					if (triArea2(apex, right, pRight) <= 0.0f) {
+						if (samePoint(apex, right) || triArea2(apex, left, pRight) > 0.0f) {
+							right = pRight;
+							rightIndex = i;
+						}
+						else {
+							smooth.push_back(left);
+							apex = left;
+							apexIndex = leftIndex;
+							left = apex;
+							right = apex;
+							leftIndex = apexIndex;
+							rightIndex = apexIndex;
+							i = apexIndex;
+							continue;
+						}
 					}
-					else {
-						portals.push_back({ a, b });
+					// update left
+					if (triArea2(apex, left, pLeft) >= 0.0f) {
+						if (samePoint(apex, left) || triArea2(apex, right, pLeft) < 0.0f) {
+							left = pLeft;
+							leftIndex = i;
+						}
+						else {
+							smooth.push_back(right);
+							apex = right;
+							apexIndex = rightIndex;
+							left = apex;
+							right = apex;
+							leftIndex = apexIndex;
+							rightIndex = apexIndex;
+							i = apexIndex;
+							continue;
+						}
 					}
+				}
+				smooth.push_back(endPos);
+
+				for (const auto& wp : smooth) {
+					outPath.PushWaypoint(wp);
 				}
 			}
-			portals.push_back({ endPos, endPos });
-
-			// Funnel algorithm
-			std::vector<Vector3> smooth;
-			size_t apexIndex = 0, leftIndex = 0, rightIndex = 0;
-			Vector3 apex = portals[0].left;
-			Vector3 left = portals[0].left;
-			Vector3 right = portals[0].right;
-			auto triArea2 = [](const Vector3& a, const Vector3& b, const Vector3& c) {
-				return (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
-			};
-			auto samePoint = [](const Vector3& a, const Vector3& b) {
-				return Vector::Length(a - b) < 1e-4f;
-			};
-			for (size_t i = 1; i < portals.size(); ++i) {
-				Vector3 pLeft = portals[i].left;
-				Vector3 pRight = portals[i].right;
-				// update right
-				if (triArea2(apex, right, pRight) <= 0.0f) {
-					if (samePoint(apex, right) || triArea2(apex, left, pRight) > 0.0f) {
-						right = pRight;
-						rightIndex = i;
-					}
-					else {
-						smooth.push_back(left);
-						apex = left;
-						apexIndex = leftIndex;
-						left = apex;
-						right = apex;
-						leftIndex = apexIndex;
-						rightIndex = apexIndex;
-						i = apexIndex;
-						continue;
-					}
+			else {
+				// No Funnel: just use centroids
+				outPath.PushWaypoint(from);
+				for (int i : triPath) {
+					outPath.PushWaypoint(allTris[i].centroid);
 				}
-				// update left
-				if (triArea2(apex, left, pLeft) >= 0.0f) {
-					if (samePoint(apex, left) || triArea2(apex, right, pLeft) < 0.0f) {
-						left = pLeft;
-						leftIndex = i;
-					}
-					else {
-						smooth.push_back(right);
-						apex = right;
-						apexIndex = rightIndex;
-						left = apex;
-						right = apex;
-						leftIndex = apexIndex;
-						rightIndex = apexIndex;
-						i = apexIndex;
-						continue;
-					}
-				}
-			}
-			smooth.push_back(endPos);
-
-			for (const auto& wp : smooth) {
-				outPath.PushWaypoint(wp);
+				outPath.PushWaypoint(to);
 			}
 			return true;
 		}

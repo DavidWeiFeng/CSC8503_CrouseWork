@@ -105,7 +105,7 @@ bool EnemyAI::BuildPathTo(const Vector3& dest) {
 	NavigationPath navPath;
 	Vector3 from = owner->GetTransform().GetPosition();
 	Vector3 to = dest;
-	if (!navMesh.FindPath(from, to, navPath)) {
+	if (!navMesh.FindPath(from, to, navPath, params.useFunnel)) {
 		hasPath = false;
 		return false;
 	}
@@ -114,11 +114,37 @@ bool EnemyAI::BuildPathTo(const Vector3& dest) {
 	while (navPath.PopWaypoint(wp)) {
 		path.emplace_back(wp);
 	}
-	if (path.size() > 1) {
-		pathIndex = 1; // skip start
-	} else {
-		pathIndex = 0;
+	// NavigationPath behaves like a stack (LIFO), so the order we got is End -> Start.
+	// We need Start -> End.
+	std::reverse(path.begin(), path.end());
+
+	// Default start: skip current position (index 0)
+	pathIndex = 1;
+
+	// Intelligent skip:
+	// If path is: [0]Start -> [1]A -> [2]B ...
+	// And we are between A and B (or past A), we should target B.
+	// We check if we are "in front" of A relative to the A->B direction.
+	if (path.size() > 2) {
+		Vector3 a = path[1];
+		Vector3 b = path[2];
+		Vector3 dir = b - a; // Direction of path
+		Vector3 toAI = from - a; // Vector from A to AI
+
+		// Project AI position onto the path segment direction
+		if (Vector::Dot(toAI, dir) > 0) {
+			// We are past A (or consistent with moving A->B), so target B
+			pathIndex = 2;
+			// Debug::Print("SmartSkip: Targeting [2]", Vector2(5, 35), Debug::MAGENTA);
+		}
 	}
+	else if (path.size() > 1) {
+		// Fallback for short paths: just check distance
+		if (Vector::Length(path[1] - from) < params.waypointTolerance) {
+			pathIndex = 2; // Might be out of bounds, handled by bound checks later
+		}
+	}
+
 	hasPath = !path.empty();
 	pathTimer = 0.0f;
 	return hasPath;
@@ -221,43 +247,95 @@ void EnemyAI::UpdateChase(float dt) {
 	}
 	pathTimer += dt;
 	Vector3 targetPos = target->GetTransform().GetPosition();
+
+	// Repath if needed
 	if (!hasPath || pathTimer >= params.pathRefreshTime ||
 		Vector::Length(targetPos - lastTargetPos) > params.repathPlayerDelta) {
 		if (!BuildPath()) {
+			// If pathfinding fails, maybe try to recover
 			requestRecover = true;
 			return;
 		}
 	}
+
 	PhysicsObject* phys = owner->GetPhysicsObject();
 	if (!phys) {
 		return;
 	}
+
 	Vector3 pos = owner->GetTransform().GetPosition();
-	Vector3 seek = targetPos;
-	if (pathIndex < path.size()) {
+	Vector3 seek = targetPos; // Default to player if no path (shouldn't happen if hasPath is checked)
+
+	// Strict path following
+	if (hasPath && pathIndex < path.size()) {
 		seek = path[pathIndex];
 	}
+
+	// DEBUG: Print path status
+	Debug::Print("PathIdx: " + std::to_string(pathIndex) + "/" + std::to_string(path.size()), Vector2(5, 50), Debug::WHITE);
+	Debug::Print("Seek: " + std::to_string(seek.x) + ", " + std::to_string(seek.z), Vector2(5, 55), Debug::GREEN);
+	Debug::Print("Targ: " + std::to_string(targetPos.x) + ", " + std::to_string(targetPos.z), Vector2(5, 58), Debug::RED);
+	Debug::Print("Params.Funnel: " + std::to_string(params.useFunnel), Vector2(5, 30), Debug::CYAN);
+	
+	if (path.size() > 1) {
+		Vector3 p1 = path[1];
+		Debug::Print("P[1]: " + std::to_string(p1.x) + ", " + std::to_string(p1.z), Vector2(5, 45), Debug::CYAN);
+	}
+
 	Vector3 toTarget = seek - pos;
 	toTarget.y = 0.0f;
 	float dist = Vector::Length(toTarget);
-	if (dist < params.waypointTolerance && pathIndex + 1 < path.size()) {
-		pathIndex++;
-		seek = path[pathIndex];
-		toTarget = seek - pos;
-		toTarget.y = 0.0f;
-		dist = Vector::Length(toTarget);
+	
+	Debug::Print("Dist: " + std::to_string(dist), Vector2(5, 60), Debug::WHITE);
+	Debug::Print("Tol: " + std::to_string(params.waypointTolerance), Vector2(5, 65), Debug::WHITE);
+
+	// Advance path if close to waypoint
+	if (hasPath && pathIndex < path.size()) {
+		// Use a slightly larger tolerance for intermediate points to ensure flow
+		if (dist < params.waypointTolerance) {
+			pathIndex++;
+			// Advance again if the next point is also super close (avoid stuttering on dense nodes)
+			while (pathIndex < path.size()) {
+				seek = path[pathIndex];
+				if (Vector::Length(seek - pos) < params.waypointTolerance * 0.5f) {
+					pathIndex++;
+				} else {
+					break;
+				}
+			}
+
+			// Update seek target for current frame
+			if (pathIndex < path.size()) {
+				seek = path[pathIndex];
+				toTarget = seek - pos;
+				toTarget.y = 0.0f;
+				dist = Vector::Length(toTarget);
+			}
+			else {
+				// Path finished
+				seek = targetPos;
+			}
+		}
 	}
-	if (Vector::LengthSquared(toTarget) > 1e-4f) {
+
+	// Movement logic
+	if (dist > 0.1f) { // Simple epsilon
 		Vector3 dir = Vector::Normalise(toTarget);
 		float step = params.moveSpeed * dt;
+		
+		// Direct position manipulation for reliable movement (kinematic-like)
 		Vector3 newPos = pos + dir * step;
+		
+		// Don't overshoot
 		if (Vector::Length(newPos - pos) > dist) {
 			newPos = seek;
 		}
+		
 		owner->GetTransform().SetPosition(newPos);
-		phys->SetLinearVelocity(Vector3());
+		phys->SetLinearVelocity(Vector3()); // Reset physics velocity to avoid interference
 	}
-	// Catch player based on planar distance to player (ignore height)
+
+	// Catch check
 	Vector3 planar = targetPos - owner->GetTransform().GetPosition();
 	planar.y = 0.0f;
 	float targetDist = Vector::Length(planar);
@@ -266,18 +344,22 @@ void EnemyAI::UpdateChase(float dt) {
 		requestRecover = true;
 		return;
 	}
+
+	// Stuck check
 	float moved = Vector::Length(pos - lastPos);
 	if (moved < params.stuckMoveEpsilon) {
 		stuckTimer += dt;
 		if (stuckTimer > params.stuckTime) {
+			// Debug::Print("Stuck!", Vector2(5, 65), Debug::RED);
 			requestRecover = true;
 		}
 	} else {
 		stuckTimer = 0.0f;
 		lastPos = pos;
 	}
+
 	// Debug draw path
-	if (pathIndex < path.size()) {
+	if (hasPath && pathIndex < path.size()) {
 		Vector3 prev = pos;
 		for (size_t i = pathIndex; i < path.size(); ++i) {
 			Vector3 wp = path[i];
@@ -285,7 +367,6 @@ void EnemyAI::UpdateChase(float dt) {
 			Debug::DrawLine(wp, wp + Vector3(0, 0.5f, 0), Vector4(0, 1, 0, 1));
 			prev = wp;
 		}
-		Debug::Print("Enemy path len: " + std::to_string(path.size() - pathIndex), Vector2(5, 70), Debug::RED);
 	}
 }
 

@@ -29,12 +29,6 @@ using namespace NCL;
 using namespace CSC8503;
 using namespace NCL::Maths;
 
-/**
- * @brief 闂佸搫鐎氫即鎮╂潏鈺佺摠缁嬪愭煛閸屾稑鍡椻枔閹达箑鏋佹繛鍡樺灍閺屻倖绻涢幘铏鍟為柛銊︾懇婵
- * @param inWorld 濠电偞鎸搁幉锟犲垂濞嗘劗鈻旈柡宥夊疾闂
- * @param inRenderer 濠电偞鎸搁幉锟犲垂濞嗗繈鎺楀矗婢跺苯甯闂侀潻绲婚崝
- * @param inPhysics 闂佺粯銇涢弲婵嬪箖婵犲嫬瀵查柤濮愬楅崺鐘绘煏
- */
 TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRenderer, PhysicsSystem& inPhysics)
 	:	world(inWorld),
 		renderer(inRenderer),
@@ -85,8 +79,8 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 
 	// start in borderless fullscreen (no resolution change)
 	if (auto* win = Window::GetWindow()) {
-		isFullscreen = true;
-		win->SetFullScreen(true);
+		isFullscreen = false;
+		win->SetFullScreen(false);
 	}
 
 	InitCamera();
@@ -110,9 +104,6 @@ bool TutorialGame::IsPlayerGrounded() const {
 	return false;
 }
 
-/**
- * @brief 闂佽桨鐒﹂悷褔鍩㈤悡搴涙帡宕ㄦ繝鍌滀簽闂佹眹鍔岀氶柣搴濈矙瀵鎼佸礋闁搞倝浜跺闁
- */
 TutorialGame::~TutorialGame()	{
 	delete enemyAI;
 	enemyAI = nullptr;
@@ -184,10 +175,6 @@ bool TutorialGame::HandleStartMenu(float dt) {
 	return true; // block game update until a choice is made
 }
 
-/**
- * @brief 濠甸敐鍛绠伴柟鑸靛哺瀵瀵告稒蓱閻撳┑鐐存尭閹诧繝宕瑰▎鎾寸劵闁哄嫬绻掔敮鍡涙煏
- * @param dt 闁汇垼搴＄偛鍊垮婂氬级閹寸姴浠遍柛锝嗘そ婵
- */
 void TutorialGame::UpdateGame(float dt) {
 	float fps = dt > 1e-6f ? 1.0f / dt : 0.0f;
 
@@ -203,14 +190,13 @@ void TutorialGame::UpdateGame(float dt) {
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F2)) {
 		InitCamera(); //F2 will reset the camera to a specific default place
 	}
-	// 闂傚倸鎳庣换鎴濃攦闂佸憡鐗楅悧婊呰勫▕瀵鍫曟偄缁楀搫瀛╅幆 - 闂佸憡鍨电换鎰版儍闁荤姳绶ょ槐鏇㈡偩婵犳艾纾婚煫鍥ㄦ尰閳
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
 		world.ShuffleConstraints(true);
 	}
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F10)) {
 		world.ShuffleConstraints(false);
 	}
-	// 闂傚倸鎳庣换鎴濃攦闂佸憡鐗楅悧鏇犳兜閸涚増婢栨俊鐐鍊曢幖缂
+	
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F7)) {
 		world.ShuffleObjects(true);
 	}
@@ -219,10 +205,10 @@ void TutorialGame::UpdateGame(float dt) {
 	}
 
 	if (lockedObject) {
-		LockedObjectMovement(); // 婵炶揪缍濞夋洟寮閵堝洨涓嶆繝銏ｅ煐閹告娊寮闂佺呯焽閸愩劎鍘闂備礁銇樼粈渚鎮鹃崜褏鏁搁崨鐗堟緰
+		LockedObjectMovement(); 
 	}
 	else {
-		DebugObjectMovement();  // 闁荤姴閸熸娊鎯佸┑锟犲灳瀹曞洨闂佹眹鍔岀氱痪閸涚増婢栭梺鐟扮仢缁夊磭绱
+		DebugObjectMovement(); 
 	}
 	//This year we can draw debug textures as well!
 	//Debug::DrawTex(*defaultTex, Vector2(10, 10), Vector2(5, 5), Debug::WHITE);
@@ -232,14 +218,12 @@ void TutorialGame::UpdateGame(float dt) {
 		Vector3 pp = playerObject->GetTransform().GetPosition();
 		Debug::Print("Player: " + std::to_string(pp.x) + "," + std::to_string(pp.y) + "," + std::to_string(pp.z), Vector2(5, 75), Debug::WHITE);
 	}
-	Debug::Print("Maze: " + mazeStatus, Vector2(5, 70), Debug::WHITE);
 	Debug::Print("Score: " + std::to_string(playerScore), Vector2(80, 95), Debug::WHITE);
 	HandleGrab();
-	HandlePlayerMovement(dt); // 婵犮垼娉涚氶柟婵犲洦鍋濋柍杞扮劍閸庤偐娆㈤梺绋跨箞閸庡厖绨洪梺	
-	UpdateGateAndPlate(dt);   // 闂佸搫娲ら悺銊╁蓟婵犲洤鍌ㄩ悗锝嗘叏韫囨稑绾у㈣泛鎽滈悷銏犮垹鐖㈤崶閿
-	UpdateEnemyAI(dt);        // 闂佸搫娲ら悺銊╁蓟婵犲洤鏋侀悘鐐插悑閻绱窱
-	UpdateCoinPickups();      // 闂佸綊娼у┑閳轰絼娑欑箾閺夋垿宕抽崜褎鏆滃ù锝囨嚀閻熷酣鏌涘▎鎰澹勭紒杈ㄧ箞閺屽棝宕归柛妯稿濆畷锝呫儱鎳撻崜
-	// 闂佸憡鐟︽繛濠囧极婵炲稿Т濞撮庢暜閾忓湱鍛鐓愰柨婵嗘噹閻樿叉橀柣鐔告緲缁叉椽鎮樿箛鎾抽柣銊уХ閻ラ柛鏍电磿缁澶娢旈崒娴㈣偐鍨甯″畷銊╁箣閹烘洖骞闂佹眹鍔岀氬⒀勫ч幏
+	HandlePlayerMovement(dt); 
+	UpdateGateAndPlate(dt);   
+	UpdateEnemyAI(dt);        
+	UpdateCoinPickups();     
 	world.OperateOnContents(
 		[dt](GameObject* o) {
 			o->Update(dt);
@@ -286,9 +270,7 @@ void TutorialGame::LateUpdate(float dt) {
 	UpdateThirdPersonCamera(0.0f);
 }
 
-/**
- * @brief 闂佸憡甯楃换鍌滐絿鍨鐓￠獮妤呭礋闁稿孩宀稿鍨銈﹂崹婢т粙鎮块崱娑樜
- */
+
 void TutorialGame::InitCamera() {
 	world.GetMainCamera().SetNearPlane(0.1f);
 	world.GetMainCamera().SetFarPlane(500.0f);
@@ -298,9 +280,6 @@ void TutorialGame::InitCamera() {
 	lockedObject = nullptr;
 }
 
-/**
- * @brief 闂佸憡甯楃换鍌滐絿鍨褰冮妴鎺楀川婵犲倻浜炴繛鎴炴尰閻楁粓寮查梺鎸庣☉閺堢紒鏂挎碍鈷旈柕鍫濇欓敍瀣鎮楅悽闈涙嚀閺夎姤鐘靛仩濞夋盯宕归崡鐐鍊楅崕銈夊蓟婵犲洤鎹堕柣鎴炆戦悵闂
- */
 void TutorialGame::InitWorld() {
 	// force delete any pending objects before clearing
 	for (auto& p : pendingRemoval) {
@@ -337,14 +316,7 @@ void TutorialGame::InitWorld() {
 	physics.UseGravity(true);
 	BuildSlopeScene();
 }
-/**
- * @brief 闂佸搫鐎氱紓鍌涙尰缁嬪娾槈閹惧瓨濯撮悹鎭掑妽閺嗗繘鏌ｉ悙鎻掓殨缂傚秴缁辨棃骞嬮悙闈涙劙寮堕埡鍌滄牜浠﹂懞銉у牏鎲搁懜閸ㄥ搫螣婢跺瞼鐭嗛柣姘鍝ュ嬬姷鍋炲﹢瑙勭箾閸ラ幃浠嬪Ω閵娧呭骄闂佷紮绲介惉濂稿箖閸℃ɑ濯撮柟鎯ф贡缁犲氭偠濞戞垮伴柛銊у楅幏鍛村箻楠炲灝鍟扮划鍫ユ惞鐟欏嫮鏆犲┑鐐存尭閹诧繝宕瑰▎鎴犳暩閸涚増婢栭梺
- * @details 闁哄嗘櫆閻熴儵骞忛幍缁鈺冿綁寮婚悢鍛婂撮柟鎯у暱濮ｆ劙鏌℃担瑙勭凡闁汇劊鍨婚幏瀣鍩＄紓宥嗭耿瀵鎼佸礋缂傚倹鎸搁弶璺ㄥ曟慨姗堢稻閼测晜娈曢梺鍛婁焦纾垫繛鍡樺灦閻ｉ亶鏌ｅ炵粯娅囬柟婵犲啰鈻旈柡宥夊疾闂侀潧妫楅崐椋庣礊濮楀畷锝夋煠閸愯尙鍠撶粻鐑芥⒒閸モ晜鍟哄ù锝囪法绋愭繛鎴炴尰缁嬪愭煕閹达絽袚闁哄棛鍠栧鍫曞Ψ閵夈儳浠閻庣偣鍊楅惁绡塀缂備焦鏌ㄩ柡宀鍠愰幏鍛村箻
- * @param position 闂佽崵鍋涢崯鈺冪礊鐎ｉ幆鍐宕熺紓宥呮噽缁辨棃鏌
- * @param radius 闂佽崵鍋涢崯鈺冪礊鐎ｉ幆鍐宕熺规洘鍔曢弶鍨
- * @param inverseMass 闂佽崵鍋涢崯鈺冪礊鐎ｉ幆鍐宕熼柛鈩冭壘缁愭盯姊洪幓鎺旂疄
- * @return 闂佸憡甯楃粙鎴犵磽閹剧粯鍎嶉柛鏇㈠箖閸℃ɑ濯撮柟鎯х跨厬闂佽勬綑缁绘劗娑甸崨鐗堟緰闂
- */
+
 GameObject* TutorialGame::BuildSphereObject(GameObject* obj, const Vector3& position, float radius, float inverseMass,
 	Rendering::Mesh* mesh,
 	const GameTechMaterial* material) {
@@ -389,7 +361,7 @@ GameObject* TutorialGame::AddCubeToWorld(const Vector3& position, Vector3 dimens
 		mesh = cubeMesh;  
 	}
 	const GameTechMaterial& usedMaterial =
-		material ? *material : checkerMaterial;  // class 闂佺懓鐡ㄩ崝鏇㈠箟閹惰棄鐭楁慨妤呭闯
+		material ? *material : checkerMaterial;  // class
 	cube->SetRenderObject(new RenderObject(cube->GetTransform(), mesh, usedMaterial));
 	cube->SetPhysicsObject(new PhysicsObject(cube->GetTransform(), cube->GetBoundingVolume()));
 
@@ -761,7 +733,7 @@ void TutorialGame::InitMazeEnemyAgent(const Vector3& pos) {
 	if (navMesh) {
 		EnemyAI::Params params;
 		params.moveSpeed = 8.0f;
-		params.waypointTolerance = 0.5f;
+		params.waypointTolerance = 2.0f;
 		params.chaseDistance = 80.0f;
 		params.loseDistance = 120.0f;
 		params.repathPlayerDelta = 3.0f;
@@ -770,6 +742,7 @@ void TutorialGame::InitMazeEnemyAgent(const Vector3& pos) {
 		params.recoverDuration = 0.6f;
 		params.pathRefreshTime = 1.0f;
 		params.catchDistance = 3.0f;
+		params.useFunnel = false;
 		params.floorMin = mazeMin - Vector3(0, -1.0f, 0);
 		params.floorMax = mazeMax + Vector3(0, 2.0f, 0);
 		mazeEnemyAI = new EnemyAI(*navMesh, params);
@@ -893,9 +866,8 @@ void TutorialGame::LoadMazeFromTxt(const std::string& path, const Vector3& offse
 void TutorialGame::BuildSlopeScene() {
 	Vector3 floorPos = Vector3(0, 0, 50);
 
-	AddFloorToWorld(floorPos); //鍦版澘
+	AddFloorToWorld(floorPos); 
 
-	// 鍔犺浇杩峰锛堝亸绉诲彲鎸夐渶璋冩暣锛
 
 	LoadMazeFromTxt("Assets/Data/maze.txt", Vector3());
 
@@ -906,7 +878,6 @@ void TutorialGame::BuildSlopeScene() {
 		InitMazeEnemyAgent(spawn);
 	}
 
-	// 闅忔満鐢熸垚 10 涓閲戝竵锛屼綅缃鍦ㄥ湴鏉胯寖鍥村唴锛岄珮搴 floorCenter.y + 1.0f
 
 	std::mt19937 rng((uint32_t)std::chrono::system_clock::now().time_since_epoch().count());
 
@@ -916,7 +887,7 @@ void TutorialGame::BuildSlopeScene() {
 
 	std::uniform_real_distribution<float> distZ(floorCenter.z - floorHalfSize.z + margin.z, floorCenter.z + floorHalfSize.z - margin.z);
 
-	for (int i = 0; i < 10; ++i) {
+	for (int i = 0; i < 15; ++i) {
 
 		Vector3 coinPos(distX(rng), floorCenter.y + 1.0f, distZ(rng));
 

@@ -12,7 +12,7 @@ namespace NCL::CSC8503 {
 	public:
 		struct Params {
 			float moveSpeed         = 8.0f;
-			float waypointTolerance = 0.5f;
+			float waypointTolerance = 1.0f;
 			float chaseDistance     = 80.0f;
 			float loseDistance      = 120.0f;
 			float catchDistance     = 1.0f;
@@ -21,6 +21,7 @@ namespace NCL::CSC8503 {
 			float stuckMoveEpsilon  = 0.05f;
 			float recoverDuration   = 0.6f;
 			float pathRefreshTime   = 1.0f;
+			bool  useFunnel         = true;
 			NCL::Maths::Vector3 floorMin = NCL::Maths::Vector3(-1000, -1000, -1000);
 			NCL::Maths::Vector3 floorMax = NCL::Maths::Vector3(1000, 1000, 1000);
 		};
