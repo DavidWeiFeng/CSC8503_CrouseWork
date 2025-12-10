@@ -79,7 +79,7 @@ void NetworkedGame::UpdateGame(float dt) {
 		else if (thisClient) {
 			UpdateAsClient(dt);
 		}
-		timeToNextPacket += 1.0f / 20.0f; //20hz server/client update
+		timeToNextPacket += 1.0f / 60.0f; // 30hz server/client update，降低输入-回传间隔
 	}
 
 	if (!inStartMenu && !thisServer && Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
@@ -92,7 +92,7 @@ void NetworkedGame::UpdateGame(float dt) {
 	// 客户端插值平滑显示
 	if (thisClient) {
 		double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-		double interpBack = 0.1; // 100ms 回放窗口
+		double interpBack = 0.05; // 50ms 回放窗口，提升跟手性
 		for (auto* netObj : networkObjects) {
 			if (netObj) {
 				netObj->ClientInterpolate(now, interpBack);
