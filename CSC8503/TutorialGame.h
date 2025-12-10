@@ -58,6 +58,7 @@ namespace NCL {
 			void HandlePlayerMovement(float dt);
 			void HandleGrab();
 			bool IsPlayerGrounded() const;
+			void MovePlayer(GameObject* player, float dt, bool keyW, bool keyA, bool keyS, bool keyD, bool keySpace, float cameraYaw);
 			void InitEnemyAgent(const NCL::Maths::Vector3& pos);
 			void InitMazeEnemyAgent(const NCL::Maths::Vector3& pos);
 			void UpdateEnemyAI(float dt);

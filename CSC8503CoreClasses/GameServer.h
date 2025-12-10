@@ -14,12 +14,17 @@ namespace NCL {
 
 			void SetGameWorld(GameWorld &g);
 
-			bool SendGlobalPacket(int msgID);
-			bool SendGlobalPacket(GamePacket& packet);
+				bool SendGlobalPacket(int msgID);
 
-			virtual void UpdateServer();
+				bool SendGlobalPacket(GamePacket& packet);
 
-		protected:
+				bool SendPacketToPeer(GamePacket& packet, int peerID);
+
+			
+
+				virtual void UpdateServer();
+
+			protected:
 			int			port;
 			int			clientMax;
 			int			clientCount;

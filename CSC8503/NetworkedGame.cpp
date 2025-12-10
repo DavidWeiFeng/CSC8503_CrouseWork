@@ -10,6 +10,7 @@
 #include "Quaternion.h"
 
 #define COLLISION_MSG 30
+#define PLAYER_ID_MSG 31 // Handshake message
 
 using namespace NCL;
 using namespace CSC8503;
@@ -61,6 +62,13 @@ void NetworkedGame::StartAsClient(char a, char b, char c, char d) {
 }
 
 void NetworkedGame::UpdateGame(float dt) {
+	if (thisServer) {
+		thisServer->UpdateServer();
+	}
+	if (thisClient) {
+		thisClient->UpdateClient();
+	}
+
 	timeToNextPacket -= dt;
 	if (timeToNextPacket < 0) {
 		if (thisServer) {
@@ -72,25 +80,14 @@ void NetworkedGame::UpdateGame(float dt) {
 		timeToNextPacket += 1.0f / 20.0f; //20hz server/client update
 	}
 
-	if (!thisServer && Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
+	if (!inStartMenu && !thisServer && Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
 		StartAsServer();
 	}
-	if (!thisClient && Window::GetKeyboard()->KeyPressed(KeyCodes::F10)) {
+	if (!inStartMenu && !thisClient && Window::GetKeyboard()->KeyPressed(KeyCodes::F10)) {
 		StartAsClient(127,0,0,1);
 	}
 
 	TutorialGame::UpdateGame(dt);
-}
-
-void NetworkedGame::UpdateAsServer(float dt) {
-	packetsToSnapshot--;
-	if (packetsToSnapshot < 0) {
-		BroadcastSnapshot(false);
-		packetsToSnapshot = 5;
-	}
-	else {
-		BroadcastSnapshot(true);
-	}
 }
 
 void NetworkedGame::UpdateAsClient(float dt) {
@@ -159,29 +156,65 @@ void NetworkedGame::StartLevel() {
 	// Spawn a local player (for host) or observer
 	// If Server:
 	if (thisServer) {
-		// Spawn Local Player
-		localPlayer = AddPlayerToWorld(Vector3(0, 5, 0));
-		localPlayer->SetNetworkObject(new NetworkObject(*localPlayer, 100)); // ID 100 for host
-		networkObjects.push_back(localPlayer->GetNetworkObject());
-		playerObject = localPlayer;
+		// The player is already created by InitWorld() -> BuildSlopeScene().
+		// We just need to get it and attach the network component.
+		if (playerObject) { // Ensure playerObject was indeed created by InitWorld()
+			localPlayer = playerObject; // Use the existing player
+			localPlayer->SetNetworkObject(new NetworkObject(*localPlayer, 100)); // ID 100 for host
+			networkObjects.push_back(localPlayer->GetNetworkObject());
+
+			// Force reset physics to safe state
+			if (localPlayer->GetPhysicsObject()) {
+				localPlayer->GetPhysicsObject()->SetLinearVelocity(Vector3(0, 0, 0));
+				localPlayer->GetPhysicsObject()->ClearForces();
+			}
+		}
+		else {
+			// Fallback: If playerObject somehow wasn't set, spawn a default one
+			std::cout << "ERROR: playerObject was not set by InitWorld() for server! Spawning default.\n";
+			localPlayer = AddPlayerToWorld(Vector3(0, 5, 0));
+			localPlayer->SetNetworkObject(new NetworkObject(*localPlayer, 100));
+			networkObjects.push_back(localPlayer->GetNetworkObject());
+			playerObject = localPlayer;
+		}
 	}
 	// If Client:
 	if (thisClient) {
-		// Do nothing, wait for packets to spawn objects?
-		// For Phase 1, we need to create the dummy object to receive data
-		// Let's manually spawn the Host Player on Client too so it has ID 100
-		GameObject* remotePlayer = AddPlayerToWorld(Vector3(0, -100, 0)); // Hidden initially
-		remotePlayer->SetNetworkObject(new NetworkObject(*remotePlayer, 100));
-		networkObjects.push_back(remotePlayer->GetNetworkObject());
+		// The client still needs the world geometry (floor, maze, etc.)
+		// But its own player and other dynamic networked objects should be created from server snapshots.
+		// So, clear the local player object which was created by InitWorld().
+		if (playerObject) {
+			// This playerObject was created by InitWorld(), but on the client,
+			// our actual player will be spawned by the server. So we remove it.
+			world.RemoveGameObject(playerObject, true); // Remove from world and delete
+			playerObject = nullptr;
+		}
 	}
 }
 
 void NetworkedGame::ReceivePacket(int type, GamePacket* payload, int source) {
 	if (type == Full_State) {
 		FullPacket* realPacket = (FullPacket*)payload;
+		// Check if we already have this object
+		bool found = false;
 		for (auto& netObj : networkObjects) {
 			if (netObj->GetNetworkID() == realPacket->objectID) {
 				netObj->ReadPacket(*realPacket);
+				found = true;
+				break;
+			}
+		}
+		// If not found, spawn a proxy for it (Client Side Only)
+		if (!found && thisClient) {
+			std::cout << "Client: Received new object " << realPacket->objectID << ", spawning proxy.\n";
+			GameObject* obj = AddPlayerToWorld(realPacket->fullState.position);
+			obj->SetNetworkObject(new NetworkObject(*obj, realPacket->objectID));
+			networkObjects.push_back(obj->GetNetworkObject());
+			
+			// If this object matches our assigned ID, it's US! Bind camera.
+			if (localNetworkID == realPacket->objectID) {
+				playerObject = obj;
+				std::cout << "Client: Bound camera to local player ID " << localNetworkID << std::endl;
 			}
 		}
 	}
@@ -195,36 +228,17 @@ void NetworkedGame::ReceivePacket(int type, GamePacket* payload, int source) {
 	}
 	else if (type == Player_Input) {
 		PlayerInputPacket* realPacket = (PlayerInputPacket*)payload;
-		int playerID = source;
-		
-		GameObject* player = nullptr;
-		if (serverPlayers.find(playerID) != serverPlayers.end()) {
-			player = serverPlayers[playerID];
+		// Store the latest input from this client
+		latestClientInput[source] = *realPacket;
+	}
+	else if (type == Message) {
+		MessagePacket* realPacket = (MessagePacket*)payload;
+		if (realPacket->messageID == COLLISION_MSG) {
+			std::cout << "Client: Received collision message for " << realPacket->playerID << std::endl;
 		}
-		else {
-			std::cout << "Server: Spawning player for client " << playerID << std::endl;
-			player = AddPlayerToWorld(Vector3(0, 5, 0));
-			// Give it a network ID? Client needs to know this ID.
-			// For Phase 1, let's just use the Input to move the HOST player (ID 100) to verify!
-			// Or spawn a non-networked player just to see physics.
-			// Let's try to map it to a new NetworkObject.
-			int newNetID = 1000 + playerID;
-			player->SetNetworkObject(new NetworkObject(*player, newNetID));
-			networkObjects.push_back(player->GetNetworkObject());
-			serverPlayers[playerID] = player;
-		}
-
-		if (player) {
-			float speed = 30.0f;
-			float rotation = realPacket->cameraYaw;
-			Vector3 fwd = Quaternion::AxisAngleToQuaterion(Vector3(0, 1, 0), rotation) * Vector3(0, 0, -1);
-			Vector3 right = Vector::Cross(Vector3(0, 1, 0), fwd);
-
-			if (realPacket->keyW) player->GetPhysicsObject()->AddForce(fwd * speed);
-			if (realPacket->keyS) player->GetPhysicsObject()->AddForce(-fwd * speed);
-			if (realPacket->keyA) player->GetPhysicsObject()->AddForce(-right * speed);
-			if (realPacket->keyD) player->GetPhysicsObject()->AddForce(right * speed);
-			if (realPacket->keySpace) player->GetPhysicsObject()->ApplyLinearImpulse(Vector3(0, 10, 0));
+		else if (realPacket->messageID == PLAYER_ID_MSG) {
+			localNetworkID = realPacket->playerID;
+			std::cout << "Client: Received assigned Network ID: " << localNetworkID << std::endl;
 		}
 	}
 }
@@ -235,9 +249,48 @@ void NetworkedGame::OnPlayerCollision(NetworkPlayer* a, NetworkPlayer* b) {
 		newPacket.messageID = COLLISION_MSG;
 		newPacket.playerID  = a->GetPlayerNum();
 
-		thisClient->SendPacket(newPacket);
+		thisServer->SendGlobalPacket(newPacket);
 
 		newPacket.playerID = b->GetPlayerNum();
-		thisClient->SendPacket(newPacket);
+		thisServer->SendGlobalPacket(newPacket);
+	}
+}
+
+void NetworkedGame::UpdateAsServer(float dt) {
+	// Apply client inputs
+	for (auto const& [playerID, inputPacket] : latestClientInput) {
+		GameObject* player = nullptr;
+		if (serverPlayers.find(playerID) != serverPlayers.end()) {
+			player = serverPlayers[playerID];
+		}
+		else {
+			// If player not found, spawn them (initial connection)
+			std::cout << "Server: Spawning player for client " << playerID << std::endl;
+			player = AddPlayerToWorld(Vector3(0, 5, 0));
+			int newNetID = 1000 + playerID; // Assign a unique Network ID
+			player->SetNetworkObject(new NetworkObject(*player, newNetID));
+			networkObjects.push_back(player->GetNetworkObject());
+			serverPlayers[playerID] = player;
+
+			// Send handshake to tell the client its ID
+			MessagePacket idPacket;
+			idPacket.messageID = PLAYER_ID_MSG;
+			idPacket.playerID = newNetID;
+			thisServer->SendPacketToPeer(idPacket, playerID);
+		}
+
+		if (player) {
+			MovePlayer(player, dt, inputPacket.keyW, inputPacket.keyA, inputPacket.keyS, inputPacket.keyD, inputPacket.keySpace, inputPacket.cameraYaw);
+		}
+	}
+	latestClientInput.clear(); // Clear inputs after processing
+
+	packetsToSnapshot--;
+	if (packetsToSnapshot < 0) {
+		BroadcastSnapshot(false);
+		packetsToSnapshot = 5;
+	}
+	else {
+		BroadcastSnapshot(true);
 	}
 }

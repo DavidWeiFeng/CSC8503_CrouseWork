@@ -561,49 +561,57 @@ void TutorialGame::DebugObjectMovement() {
 	}
 }
 
-void TutorialGame::HandlePlayerMovement(float dt) {
-	if (!playerObject) {
+void TutorialGame::MovePlayer(GameObject* player, float dt, bool keyW, bool keyA, bool keyS, bool keyD, bool keySpace, float cameraYaw) {
+	if (!player) {
 		return;
 	}
-	PhysicsObject* phys = playerObject->GetPhysicsObject();
+	PhysicsObject* phys = player->GetPhysicsObject();
 	if (!phys) {
 		return;
 	}
 	// Ground check via short raycast downward
-	bool grounded = IsPlayerGrounded();
-	Matrix4 view = world.GetMainCamera().BuildViewMatrix();
-	Matrix4 camWorld = Matrix::Inverse(view);
-	Vector3 rightAxis = Vector3(camWorld.GetColumn(0));
-	Vector3 fwdAxis = Vector::Cross(Vector3(0, 1, 0), rightAxis);
-	rightAxis.y = 0.0f;
+	// NOTE: For networked players, IsPlayerGrounded should probably be passed as a param or handled on server
+	// For now, re-using existing logic that works on local playerObject
+	bool grounded = (player == this->playerObject) ? IsPlayerGrounded() : true; // Assume remote players are grounded for simplicity if this is called on server for them
+
+	// Camera orientation for movement direction
+	// This assumes a 3rd person camera. For top-down or fixed camera, adjust.
+	Quaternion camRot = Quaternion::AxisAngleToQuaterion(Vector3(0, 1, 0), cameraYaw);
+	Vector3 fwdAxis = camRot * Vector3(0, 0, -1);
+	Vector3 rightAxis = camRot * Vector3(1, 0, 0);
+
 	fwdAxis.y = 0.0f;
-	rightAxis = Vector::Normalise(rightAxis);
+	rightAxis.y = 0.0f;
 	fwdAxis = Vector::Normalise(fwdAxis);
+	rightAxis = Vector::Normalise(rightAxis);
+
 	Vector3 moveDir;
-	auto* keyboard = Window::GetKeyboard();
-	if (keyboard->KeyDown(KeyCodes::W)) {
+	if (keyW) {
 		moveDir += fwdAxis;
 	}
-	if (keyboard->KeyDown(KeyCodes::S)) {
+	if (keyS) {
 		moveDir -= fwdAxis;
 	}
-	if (keyboard->KeyDown(KeyCodes::A)) {
+	if (keyA) {
 		moveDir -= rightAxis;
 	}
-	if (keyboard->KeyDown(KeyCodes::D)) {
+	if (keyD) {
 		moveDir += rightAxis;
 	}
+
 	if (Vector::LengthSquared(moveDir) > 0.0f) {
 		moveDir = Vector::Normalise(moveDir);
 		phys->AddForce(moveDir * playerMoveForce);
 	}
 	// Jump only when grounded
-	if (grounded && keyboard->KeyPressed(KeyCodes::SPACE)) {
+	if (grounded && keySpace) {
 		phys->ApplyLinearImpulse(Vector3(0, playerJumpImpulse, 0));
 	}
+
 	Vector3 velocity = phys->GetLinearVelocity();
 	// Apply planar friction
 	Vector3 horizVel = Vector3(velocity.x, 0.0f, velocity.z);
+
 	if (Vector::LengthSquared(horizVel) > 0.0f) {
 		float friction = grounded ? groundFriction : airFriction;
 		// Treat friction as per-second damping; raise to dt to make it framerate-independent
@@ -612,6 +620,7 @@ void TutorialGame::HandlePlayerMovement(float dt) {
 		velocity.x = horizVel.x;
 		velocity.z = horizVel.z;
 	}
+
 	float speed = Vector::Length(velocity);
 	if (speed > playerMaxSpeed && speed > 0.0f) {
 		phys->SetLinearVelocity(Vector::Normalise(velocity) * playerMaxSpeed);
@@ -619,6 +628,23 @@ void TutorialGame::HandlePlayerMovement(float dt) {
 	else {
 		phys->SetLinearVelocity(velocity);
 	}
+}
+
+void TutorialGame::HandlePlayerMovement(float dt) {
+	if (!playerObject) {
+		return;
+	}
+
+	auto* keyboard = Window::GetKeyboard();
+	bool keyW = keyboard->KeyDown(KeyCodes::W);
+	bool keyA = keyboard->KeyDown(KeyCodes::A);
+	bool keyS = keyboard->KeyDown(KeyCodes::S);
+	bool keyD = keyboard->KeyDown(KeyCodes::D);
+	bool keySpace = keyboard->KeyPressed(KeyCodes::SPACE);
+
+	float cameraYaw = world.GetMainCamera().GetYaw();
+
+	MovePlayer(playerObject, dt, keyW, keyA, keyS, keyD, keySpace, cameraYaw);
 }
 void TutorialGame::HandleGrab() {
 	auto releaseGrab = [&]() {

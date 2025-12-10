@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "NetworkObject.h"
 #include "./enet/enet.h"
 using namespace NCL;
@@ -13,13 +14,19 @@ NetworkObject::~NetworkObject()	{
 }
 
 bool NetworkObject::ReadPacket(GamePacket& p) {
+	if (p.type == Delta_State) {
+		return ReadDeltaPacket((DeltaPacket&)p);
+	}
+	if (p.type == Full_State) {
+		return ReadFullPacket((FullPacket&)p);
+	}
 	return false; //this isn't a packet we care about!
 }
 
 bool NetworkObject::WritePacket(GamePacket** p, bool deltaFrame, int stateID) {
 	if (deltaFrame) {
-		if (!WriteDeltaPacket(p, stateID)) {
-			return WriteFullPacket(p);
+		if (WriteDeltaPacket(p, stateID)) {
+			return true;
 		}
 	}
 	return WriteFullPacket(p);
@@ -100,6 +107,14 @@ bool NetworkObject::WriteFullPacket(GamePacket**p) {
 	fp->fullState.orientation	= object.GetTransform().GetOrientation();
 	fp->fullState.stateID		= lastFullState.stateID++;
 
+	// Track history so we can generate delta packets later
+	stateHistory.emplace_back(fp->fullState);
+	// Keep history from growing unbounded
+	constexpr size_t maxHistory = 90;
+	if (stateHistory.size() > maxHistory) {
+		stateHistory.erase(stateHistory.begin(), stateHistory.begin() + (stateHistory.size() - maxHistory));
+	}
+
 	*p = fp;
 	return true;
 }
@@ -109,8 +124,19 @@ NetworkState& NetworkObject::GetLatestNetworkState() {
 }
 
 bool NetworkObject::GetNetworkState(int stateID, NetworkState& state) {
+	for (auto& entry : stateHistory) {
+		if (entry.stateID == stateID) {
+			state = entry;
+			return true;
+		}
+	}
 	return false;
 }
 
 void NetworkObject::UpdateStateHistory(int minID) {
+	stateHistory.erase(
+		std::remove_if(
+			stateHistory.begin(), stateHistory.end(),
+			[minID](const NetworkState& s) { return s.stateID < minID; }),
+		stateHistory.end());
 }

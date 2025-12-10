@@ -48,6 +48,14 @@ bool GameServer::SendGlobalPacket(GamePacket& packet) {
 	return true;
 }
 
+bool GameServer::SendPacketToPeer(GamePacket& packet, int peerID) {
+	if (peerID < 0 || peerID >= clientMax) return false;
+	ENetPeer* peer = &netHandle->peers[peerID];
+	ENetPacket* dataPacket = enet_packet_create(&packet, packet.GetTotalSize(), 0);
+	enet_peer_send(peer, 0, dataPacket);
+	return true;
+}
+
 void GameServer::UpdateServer() {
 	if (!netHandle) { return; }
 	ENetEvent event;

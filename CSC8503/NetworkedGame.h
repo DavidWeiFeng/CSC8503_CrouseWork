@@ -59,6 +59,8 @@ namespace NCL::CSC8503 {
 		std::vector<NetworkObject*> networkObjects;
 
 		std::map<int, GameObject*> serverPlayers;
+		std::map<int, PlayerInputPacket> latestClientInput; // Added
 		GameObject* localPlayer;
+		int localNetworkID = -1;
 	};
 }
