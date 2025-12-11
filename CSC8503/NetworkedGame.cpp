@@ -8,12 +8,14 @@
 #include "Window.h"
 #include "Matrix.h"
 #include "Quaternion.h"
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include "Debug.h"
 
 #define COLLISION_MSG 30
 #define PLAYER_ID_MSG 31 // Handshake message
+#define HEAVY_GRAB_MSG 32
 
 using namespace NCL;
 using namespace CSC8503;
@@ -36,11 +38,21 @@ NetworkedGame::NetworkedGame(GameWorld& gameWorld, GameTechRendererInterface& re
 	NetworkBase::Initialise();
 	timeToNextPacket  = 0.0f;
 	packetsToSnapshot = 0;
+	heavyCoop = {};
 }
 
 NetworkedGame::~NetworkedGame()	{
 	if (thisServer) {
 		SaveHighScores();
+	}
+	if (heavyCoop.aToHeavy) {
+		world.RemoveConstraint(heavyCoop.aToHeavy, true);
+	}
+	if (heavyCoop.bToHeavy) {
+		world.RemoveConstraint(heavyCoop.bToHeavy, true);
+	}
+	if (heavyCoop.aToB) {
+		world.RemoveConstraint(heavyCoop.aToB, true);
 	}
 	delete thisServer;
 	delete thisClient;
@@ -152,6 +164,14 @@ void NetworkedGame::UpdateGame(float dt) {
 		y += 3.0f;
 	}
 
+	// Debug 输出重物抓取人数
+	if (heavyObject) {
+		Debug::Print("Heavy grabs: " + std::to_string(currentHeavyGrabbers), Vector2(5, 5), Debug::WHITE);
+		if (thisServer && localHeavyGrabbing) {
+			Debug::Print("Host grabbing heavy", Vector2(5, 8), Debug::CYAN);
+		}
+	}
+
 	TutorialGame::UpdateGame(dt);
 }
 
@@ -162,7 +182,8 @@ void NetworkedGame::UpdateAsClient(float dt) {
 	newPacket.keyS = Window::GetKeyboard()->KeyDown(KeyCodes::S);
 	newPacket.keyD = Window::GetKeyboard()->KeyDown(KeyCodes::D);
 	newPacket.keySpace = Window::GetKeyboard()->KeyPressed(KeyCodes::SPACE);
-	newPacket.keyGrab = Window::GetKeyboard()->KeyDown(KeyCodes::SHIFT); 
+	newPacket.keyGrab = Window::GetMouse()->ButtonDown(NCL::MouseButtons::Right) || Window::GetKeyboard()->KeyDown(KeyCodes::SHIFT); 
+	newPacket.heavyGrabActive = (grabbedObject == heavyObject);
 	newPacket.cameraYaw = world.GetMainCamera().GetYaw();
 	
 	thisClient->SendPacket(newPacket);
@@ -217,6 +238,11 @@ void NetworkedGame::SpawnPlayer() {
 }
 
 void NetworkedGame::StartLevel() {
+	serverHeavyGrabState.clear();
+	currentHeavyGrabberIDs.clear();
+	heavyCoop = {};
+	lastSentHeavyCount = -1;
+
 	InitWorld();
 	// Spawn a local player (for host) or observer
 	// If Server:
@@ -254,6 +280,16 @@ void NetworkedGame::StartLevel() {
 			world.RemoveGameObject(playerObject, true); // Remove from world and delete
 			playerObject = nullptr;
 		}
+		// 客户端保留重物，但需要挂上网络对象用于同步
+		if (heavyObject && !heavyObject->GetNetworkObject()) {
+			heavyObject->SetNetworkObject(new NetworkObject(*heavyObject, heavyObjectNetID));
+			networkObjects.push_back(heavyObject->GetNetworkObject());
+		}
+	}
+	// 服务器挂载重物网络对象
+	if (thisServer && heavyObject && !heavyObject->GetNetworkObject()) {
+		heavyObject->SetNetworkObject(new NetworkObject(*heavyObject, heavyObjectNetID));
+		networkObjects.push_back(heavyObject->GetNetworkObject());
 	}
 }
 
@@ -316,6 +352,33 @@ void NetworkedGame::ReceivePacket(int type, GamePacket* payload, int source) {
 		else if (realPacket->messageID == PLAYER_ID_MSG) {
 			localNetworkID = realPacket->playerID;
 			std::cout << "Client: Received assigned Network ID: " << localNetworkID << std::endl;
+		}
+		else if (realPacket->messageID == HEAVY_GRAB_MSG) {
+			currentHeavyGrabbers = realPacket->playerID;
+			// 更新客户端重物颜色
+			if (heavyObject) {
+				if (auto* phys = heavyObject->GetPhysicsObject()) {
+					if (currentHeavyGrabbers >= 2) {
+						phys->SetInverseMass(0.5f);
+						if (auto* ro = heavyObject->GetRenderObject()) {
+							ro->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f));
+						}
+					}
+					else {
+						phys->SetInverseMass(0.0f);
+						phys->SetLinearVelocity(Vector3());
+						phys->SetAngularVelocity(Vector3());
+						if (auto* ro = heavyObject->GetRenderObject()) {
+							if (currentHeavyGrabbers == 1) {
+								ro->SetColour(Vector4(0.9f, 0.7f, 0.2f, 1.0f));
+							}
+							else {
+								ro->SetColour(Vector4(0.8f, 0.4f, 0.2f, 1.0f));
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 	else if (type == HighScore_Request) {
@@ -437,6 +500,9 @@ void NetworkedGame::SaveHighScores() {
 }
 
 void NetworkedGame::UpdateAsServer(float dt) {
+	int heavyGrabCount = 0;
+	currentHeavyGrabberIDs.clear();
+
 	auto clampPlayerToSpawn = [this](GameObject* player, int playerID) {
 		if (!player) return;
 		Vector3 pos = player->GetTransform().GetPosition();
@@ -481,9 +547,138 @@ void NetworkedGame::UpdateAsServer(float dt) {
 		if (player) {
 			MovePlayer(player, dt, inputPacket.keyW, inputPacket.keyA, inputPacket.keyS, inputPacket.keyD, inputPacket.keySpace, inputPacket.cameraYaw);
 			clampPlayerToSpawn(player, playerID);
+			if (heavyObject) {
+				bool grabbed = inputPacket.heavyGrabActive;
+				serverHeavyGrabState[playerID] = grabbed;
+			}
 		}
 	}
 	latestClientInput.clear(); // Clear inputs after processing
+
+	// Host自己的抓取状态
+	if (heavyObject) {
+		serverHeavyGrabState[-1] = localHeavyGrabbing;
+	}
+
+	// 统计抓取人数（允许更大距离，超范围视为松手）
+	if (heavyObject) {
+		for (auto& kv : serverHeavyGrabState) {
+			int pid = kv.first;
+			bool grabbed = kv.second;
+			if (!grabbed) continue;
+			GameObject* g = nullptr;
+			if (pid == -1) {
+				g = playerObject;
+			}
+			else {
+				auto it = serverPlayers.find(pid);
+				if (it != serverPlayers.end()) {
+					g = it->second;
+				}
+			}
+			if (g) {
+				float dist = Vector::Length(g->GetTransform().GetPosition() - heavyObject->GetTransform().GetPosition());
+				if (dist <= heavyGrabRange * 2.0f) {
+					heavyGrabCount++;
+					currentHeavyGrabberIDs.insert(pid);
+				} else {
+					serverHeavyGrabState[pid] = false; // 过远视为松手
+				}
+			}
+		}
+	}
+
+	// 设置重物是否可移动（需要至少两人同时抓取）
+	if (heavyObject) {
+		currentHeavyGrabbers = heavyGrabCount;
+		// 同步/创建三体协作约束（服务器侧）
+		if (heavyGrabCount >= 2) {
+			std::vector<int> grabbers(currentHeavyGrabberIDs.begin(), currentHeavyGrabberIDs.end());
+			std::sort(grabbers.begin(), grabbers.end());
+
+			GameObject* ga = nullptr;
+			GameObject* gb = nullptr;
+			int count = 0;
+			for (int grabberID : grabbers) {
+				GameObject* g = nullptr;
+				if (grabberID == -1) g = playerObject;
+				else {
+					auto it = serverPlayers.find(grabberID);
+					if (it != serverPlayers.end()) g = it->second;
+				}
+				if (!g) continue;
+				if (count == 0) ga = g;
+				else if (count == 1) { gb = g; break; }
+				count++;
+			}
+			bool needRebuild = false;
+			if (!heavyCoop.aToHeavy || heavyCoop.a != ga || heavyCoop.b != gb) {
+				needRebuild = true;
+			}
+			if (needRebuild) {
+				if (heavyCoop.aToHeavy) world.RemoveConstraint(heavyCoop.aToHeavy, true);
+				if (heavyCoop.bToHeavy) world.RemoveConstraint(heavyCoop.bToHeavy, true);
+				if (heavyCoop.aToB)     world.RemoveConstraint(heavyCoop.aToB, true);
+				heavyCoop = {};
+				if (ga && gb) {
+					// 以当前距离为基准（上限为抓取范围），略放松下限以留“弹性”
+					float restA = std::clamp(Vector::Length(ga->GetTransform().GetPosition() - heavyObject->GetTransform().GetPosition()), 2.5f, heavyGrabRange);
+					float restB = std::clamp(Vector::Length(gb->GetTransform().GetPosition() - heavyObject->GetTransform().GetPosition()), 2.5f, heavyGrabRange);
+					float restAB = std::clamp(Vector::Length(ga->GetTransform().GetPosition() - gb->GetTransform().GetPosition()), 3.0f, heavyGrabRange * 2.0f);
+					heavyCoop.aToHeavy = new PositionConstraint(ga, heavyObject, restA);
+					heavyCoop.bToHeavy = new PositionConstraint(gb, heavyObject, restB);
+					heavyCoop.aToB     = new PositionConstraint(ga, gb, restAB);
+					heavyCoop.a = ga; heavyCoop.b = gb;
+					world.AddConstraint(heavyCoop.aToHeavy);
+					world.AddConstraint(heavyCoop.bToHeavy);
+					world.AddConstraint(heavyCoop.aToB);
+				}
+			}
+			// 清理旧的单体约束表
+			for (auto& kv : heavyGrabConstraints) {
+				world.RemoveConstraint(kv.second, true);
+			}
+			heavyGrabConstraints.clear();
+		} else {
+			// 不足两人抓取，移除所有约束
+			for (auto& kv : heavyGrabConstraints) {
+				world.RemoveConstraint(kv.second, true);
+			}
+			heavyGrabConstraints.clear();
+			if (heavyCoop.aToHeavy) world.RemoveConstraint(heavyCoop.aToHeavy, true);
+			if (heavyCoop.bToHeavy) world.RemoveConstraint(heavyCoop.bToHeavy, true);
+			if (heavyCoop.aToB)     world.RemoveConstraint(heavyCoop.aToB, true);
+			heavyCoop = {};
+		}
+		if (auto* phys = heavyObject->GetPhysicsObject()) {
+			if (heavyGrabCount >= 2) {
+				phys->SetInverseMass(0.5f);
+				if (auto* ro = heavyObject->GetRenderObject()) {
+					ro->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f)); // 两人抓取绿色
+				}
+			} else {
+				phys->SetInverseMass(0.0f);
+				phys->SetLinearVelocity(Vector3());
+				phys->SetAngularVelocity(Vector3());
+				if (auto* ro = heavyObject->GetRenderObject()) {
+					if (heavyGrabCount == 1) {
+						ro->SetColour(Vector4(0.9f, 0.7f, 0.2f, 1.0f)); // 单人抓取金黄
+					} else {
+						ro->SetColour(Vector4(0.8f, 0.4f, 0.2f, 1.0f)); // 无人抓取橙色
+					}
+				}
+			}
+		}
+	}
+
+	// 把抓取人数广播给客户端（状态变化时）
+	if (thisServer && heavyGrabCount != lastSentHeavyCount) {
+		MessagePacket msg;
+		msg.messageID = HEAVY_GRAB_MSG;
+		msg.playerID = (short)heavyGrabCount; // reuse字段承载人数
+		thisServer->SendGlobalPacket(msg);
+		lastSentHeavyCount = heavyGrabCount;
+	}
 
 	// 更新主机分数到排行榜（只跟踪主机分数，演示用）
 	if (playerScore > cachedServerScore) {

@@ -16,6 +16,7 @@ namespace NCL::CSC8503 {
 		bool	keyD;
 		bool	keySpace;
 		bool	keyGrab;
+		bool	heavyGrabActive;
 		float	cameraYaw;
 
 		PlayerInputPacket() {
@@ -84,8 +85,19 @@ class NetworkedGame : public TutorialGame, public PacketReceiver
 
 		std::map<int, GameObject*> serverPlayers;
 		std::map<int, PlayerInputPacket> latestClientInput; // Added
+		std::map<int, bool> serverHeavyGrabState;
 		GameObject* localPlayer;
 		int localNetworkID = -1;
+		int lastSentHeavyCount = -1;
+		int heavyObjectNetID = 400;
+		std::unordered_set<int> currentHeavyGrabberIDs;
+		struct HeavyCoopConstraints {
+			PositionConstraint* aToHeavy = nullptr;
+			PositionConstraint* bToHeavy = nullptr;
+			PositionConstraint* aToB     = nullptr;
+			GameObject* a = nullptr;
+			GameObject* b = nullptr;
+		} heavyCoop;
 
 		std::vector<ScoreEntry> serverHighScores;
 		std::vector<ScoreEntry> clientHighScores;

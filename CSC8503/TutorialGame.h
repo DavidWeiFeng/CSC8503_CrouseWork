@@ -9,6 +9,7 @@
 #include "NavigationPath.h"
 #include "EnemyAI.h"
 #include "PlayerObject.h"
+#include <unordered_map>
 namespace NCL {
 	class Controller;
 
@@ -147,6 +148,13 @@ namespace NCL {
 			GameObject* goalPlate = nullptr;
 			bool goalTriggered = false;
 			NCL::Maths::Vector3 goalPlateHalf = NCL::Maths::Vector3(2.0f, 0.1f, 2.0f);
+			// 协作重物
+			GameObject* heavyObject = nullptr;
+			NCL::Maths::Vector3 heavyHalfSize = NCL::Maths::Vector3(2.0f, 2.0f, 2.0f);
+			float heavyGrabRange = 6.0f;
+			bool localHeavyGrabbing = false;
+			int currentHeavyGrabbers = 0;
+			std::unordered_map<GameObject*, PositionConstraint*> heavyGrabConstraints;
 			// 结算界面
 			bool showGameOver = false;
 			bool highScoreEligible = false;

@@ -272,6 +272,10 @@ void TutorialGame::UpdateGame(float dt) {
 		Debug::Print("Player: " + std::to_string(pp.x) + "," + std::to_string(pp.y) + "," + std::to_string(pp.z), Vector2(5, 75), Debug::WHITE);
 	}
 	Debug::Print("Score: " + std::to_string(playerScore), Vector2(80, 95), Debug::WHITE);
+	if (heavyObject) {
+		Debug::Print(std::string("Local heavy grab: ") + (localHeavyGrabbing ? "Yes" : "No"), Vector2(5, 90), Debug::WHITE);
+		Debug::Print("Heavy grabs (server): " + std::to_string(currentHeavyGrabbers), Vector2(5, 87), Debug::WHITE);
+	}
 	HandleGrab();
 	HandlePlayerMovement(dt); 
 	UpdateGateAndPlate(dt);   
@@ -371,6 +375,11 @@ void TutorialGame::InitWorld() {
 	highScoreEligible = false;
 	nameSubmitted = false;
 	nameInput.clear();
+	// 清理重物约束
+	for (auto& kv : heavyGrabConstraints) {
+		world.RemoveConstraint(kv.second, true);
+	}
+	heavyGrabConstraints.clear();
 	if (enemyAI) {
 		delete enemyAI;
 		enemyAI = nullptr;
@@ -381,6 +390,8 @@ void TutorialGame::InitWorld() {
 		mazeEnemyAI = nullptr;
 	}
 	mazeEnemyObject = nullptr;
+	heavyObject = nullptr;
+	localHeavyGrabbing = false;
 	physics.UseGravity(true);
 	floorCoins.clear();
 	BuildSlopeScene();
@@ -719,12 +730,15 @@ void TutorialGame::HandleGrab() {
 	auto releaseGrab = [&]() {
 		if (grabbedObject) {
 			if (grabbedObject->GetRenderObject()) {
-				grabbedObject->GetRenderObject()->SetColour(Vector4(1, 1, 1, 1));
+				// heavy物体恢复为默认橙色，其它物体恢复白色
+				Vector4 clr = (grabbedObject == heavyObject) ? Vector4(0.8f, 0.4f, 0.2f, 1.0f) : Vector4(1, 1, 1, 1);
+				grabbedObject->GetRenderObject()->SetColour(clr);
 			}
 		}
 		grabbedObject = nullptr;
 		grabLocalOffset = Vector3();
 		grabDistance = 0.0f;
+		localHeavyGrabbing = false;
 		};
 
 	if (!inSelectionMode && !selectionObject) {
@@ -743,18 +757,24 @@ void TutorialGame::HandleGrab() {
 					if (hit.rayDistance > grabMaxDistance) {
 						return; //
 					}
-					GameObject* hitObj = (GameObject*)hit.node;
-					PhysicsObject* phys = hitObj ? hitObj->GetPhysicsObject() : nullptr;
-					if (phys && phys->GetInverseMass() > 0.0f) {
-						grabbedObject = hitObj;
-						Quaternion invOrient = grabbedObject->GetTransform().GetOrientation().Conjugate();
-						Vector3 local = hit.collidedAt - grabbedObject->GetTransform().GetPosition();
-						grabLocalOffset = invOrient * local;
-						float desiredGrabDistance = 1.0f;
+				GameObject* hitObj = (GameObject*)hit.node;
+				PhysicsObject* phys = hitObj ? hitObj->GetPhysicsObject() : nullptr;
+				bool canGrabHeavy = (hitObj == heavyObject); // 允许抓取重物即便当前质量为静态
+				if (phys && (phys->GetInverseMass() > 0.0f || canGrabHeavy)) {
+					grabbedObject = hitObj;
+					Quaternion invOrient = grabbedObject->GetTransform().GetOrientation().Conjugate();
+					Vector3 local = hit.collidedAt - grabbedObject->GetTransform().GetPosition();
+					grabLocalOffset = invOrient * local;
+					float desiredGrabDistance = 1.0f;
 						grabDistance = desiredGrabDistance;
 						if (grabbedObject->GetRenderObject()) {
-							grabbedObject->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));
+							if (grabbedObject == heavyObject) {
+								grabbedObject->GetRenderObject()->SetColour(Vector4(0.9f, 0.7f, 0.2f, 1.0f)); // 单人抓取金黄
+							} else {
+								grabbedObject->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));
+							}
 						}
+						localHeavyGrabbing = (grabbedObject == heavyObject);
 					}
 				}
 			}
@@ -1039,6 +1059,13 @@ void TutorialGame::BuildSlopeScene() {
 	playerSpawnPos = platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f);
 	//playerSpawnPos = Vector3(0.0f, 10, 200.0f);
 	playerObject = AddPlayerToWorld(playerSpawnPos);
+
+	// 协作重物放在玩家出生附近
+	Vector3 heavyPos = playerSpawnPos + Vector3(5.0f, -2.0f, 8.0f);
+	heavyObject = AddSphereToWorld(heavyPos,2.0f,0.0f);
+	if (heavyObject && heavyObject->GetRenderObject()) {
+		heavyObject->GetRenderObject()->SetColour(Vector4(0.4f, 0.25f, 0.1f, 1.0f));
+	}
 
 	// Enemy spawn on floor area
 	Vector3 enemySpawn = floorCenter;
