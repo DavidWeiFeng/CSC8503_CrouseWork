@@ -173,7 +173,7 @@ namespace NCL {
 			NCL::Maths::Vector3 gateLeftOpenPos    = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 gateRightOpenPos   = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 pushCubeHalfSize = NCL::Maths::Vector3(0.7f, 0.7f, 0.7f);
-			NCL::Maths::Vector3 plateHalfSize    = NCL::Maths::Vector3(2.0f, 0.2f, 2.0f);
+			NCL::Maths::Vector3 plateHalfSize    = NCL::Maths::Vector3(3.0f, 0.2f, 4.0f);
 			NCL::Maths::Vector3 gateHalfSize     = NCL::Maths::Vector3(2.0f, 4.0f, 0.5f);
 			
 			GameObject* enemyObject = nullptr;

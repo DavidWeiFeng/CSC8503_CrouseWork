@@ -481,18 +481,28 @@ void TutorialGame::UpdateGateAndPlate(float dt) {
 	(void)dt;
 
 	bool platePressed = false;
-	if (pushableCube && pressurePlate) {
-		Vector3 platePos = pressurePlate->GetTransform().GetPosition();
-		Vector3 cubePos = pushableCube->GetTransform().GetPosition();
-		Vector3 delta = cubePos - platePos;
-
-		bool overlapX = std::abs(delta.x) <= (pushCubeHalfSize.x + plateHalfSize.x);
-		bool overlapZ = std::abs(delta.z) <= (pushCubeHalfSize.z + plateHalfSize.z);
-		bool overlapY = (cubePos.y - pushCubeHalfSize.y) <= (platePos.y + plateHalfSize.y + 0.4f);
-
-		if (overlapX && overlapZ && overlapY) {
-			platePressed = true;
+	std::unordered_set<GameObject*> checked;
+	auto checkPlate = [&](GameObject* obj, const Vector3& halfSize) {
+		if (!obj || !pressurePlate) {
+			return false;
 		}
+		if (checked.find(obj) != checked.end()) {
+			return false;
+		}
+		checked.insert(obj);
+		Vector3 platePos = pressurePlate->GetTransform().GetPosition();
+		Vector3 objPos = obj->GetTransform().GetPosition();
+		Vector3 delta = objPos - platePos;
+
+		bool overlapX = std::abs(delta.x) <= (halfSize.x + plateHalfSize.x);
+		bool overlapZ = std::abs(delta.z) <= (halfSize.z + plateHalfSize.z);
+		bool overlapY = (objPos.y - halfSize.y) <= (platePos.y + plateHalfSize.y + 0.4f);
+		return overlapX && overlapZ && overlapY;
+	};
+
+	// 允许推箱子或协作重物触发压板（重物与推箱子可能是同一个对象）
+	if (checkPlate(pushableCube, pushCubeHalfSize) || checkPlate(heavyObject, heavyHalfSize)) {
+		platePressed = true;
 	}
 
 	if (platePressed) {
@@ -1030,7 +1040,7 @@ void TutorialGame::BuildSlopeScene() {
 	pushableCube = AddSphereToWorld(platformPos + Vector3(0.0f, platformHalfSize.y + pushCubeHalfSize.y, 0.0f),1.0f , 1.0f);
 
 	// Pressure plate at ramp bottom
-	Vector3 platePos = Vector3(-1.0f, 1.0f, 12.0f);
+	Vector3 platePos = Vector3(-1.0f, 1.0f, 14.0f);
 	pressurePlate = AddOBBCubeToWorld(platePos, plateHalfSize, Quaternion::AxisAngleToQuaterion(Vector3(0, 1, 0), 0.0f), 0.0f);
 	if (pressurePlate && pressurePlate->GetRenderObject()) {
 		pressurePlate->GetRenderObject()->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f));
@@ -1237,17 +1247,25 @@ void TutorialGame::UpdateSweeper(float dt) {
 
 void TutorialGame::HandleGoalPlate(float dt) {
 	(void)dt;
-	if (goalTriggered || !goalPlate || !pushableCube) {
+	if (goalTriggered || !goalPlate) {
 		return;
 	}
-	Vector3 platePos = goalPlate->GetTransform().GetPosition();
-	Vector3 plateHalf = goalPlateHalf;
-	Vector3 cubePos = pushableCube->GetTransform().GetPosition();
-	Vector3 diff = cubePos - platePos;
-	bool overlapX = std::abs(diff.x) <= (plateHalf.x + pushCubeHalfSize.x);
-	bool overlapZ = std::abs(diff.z) <= (plateHalf.z + pushCubeHalfSize.z);
-	bool overlapY = std::abs(diff.y) <= (plateHalf.y + pushCubeHalfSize.y + 0.5f);
-	if (overlapX && overlapZ && overlapY) {
+
+	auto overlapsGoal = [&](GameObject* obj, const Vector3& halfSize) {
+		if (!obj) {
+			return false;
+		}
+		Vector3 platePos = goalPlate->GetTransform().GetPosition();
+		Vector3 plateHalf = goalPlateHalf;
+		Vector3 objPos = obj->GetTransform().GetPosition();
+		Vector3 diff = objPos - platePos;
+		bool overlapX = std::abs(diff.x) <= (plateHalf.x + halfSize.x);
+		bool overlapZ = std::abs(diff.z) <= (plateHalf.z + halfSize.z);
+		bool overlapY = std::abs(diff.y) <= (plateHalf.y + halfSize.y + 0.5f);
+		return overlapX && overlapZ && overlapY;
+	};
+
+	if (overlapsGoal(pushableCube, pushCubeHalfSize) || overlapsGoal(heavyObject, heavyHalfSize)) {
 		goalTriggered = true;
 		showGameOver = true;
 		nameSubmitted = false;
