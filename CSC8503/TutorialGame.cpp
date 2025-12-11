@@ -705,32 +705,34 @@ void TutorialGame::HandleGrab() {
 		grabDistance = 0.0f;
 		};
 
-	bool rightDown = Window::GetMouse()->ButtonDown(NCL::MouseButtons::Right);
-
 	if (!inSelectionMode && !selectionObject) {
-		if (!grabbedObject && Window::GetMouse()->ButtonPressed(NCL::MouseButtons::Right) && playerObject) {
-			Vector3 origin = playerObject->GetTransform().GetPosition();
-			Vector3 forward = playerObject->GetTransform().GetOrientation() * Vector3(0, 0, 1);
-			forward = Vector::Normalise(forward);
-			Ray ray(origin, forward);
-			RayCollision hit;
-			Debug::DrawLine(origin, origin + forward * 100.0f, Vector4(1, 0, 0, 1));
-			if (world.Raycast(ray, hit, true, playerObject)) {
-				if (hit.rayDistance > grabMaxDistance) {
-					return; //
-				}
-				GameObject* hitObj = (GameObject*)hit.node;
-				PhysicsObject* phys = hitObj ? hitObj->GetPhysicsObject() : nullptr;
-				if (phys && phys->GetInverseMass() > 0.0f) {
-					grabbedObject = hitObj;
-					Quaternion invOrient = grabbedObject->GetTransform().GetOrientation().Conjugate();
-					Vector3 local = hit.collidedAt - grabbedObject->GetTransform().GetPosition();
-					grabLocalOffset = invOrient * local;
-					float desiredGrabDistance = 1.0f;
-					grabDistance = desiredGrabDistance;
-					//grabDistance = std::min(hit.rayDistance, grabMaxDistance);
-					if (grabbedObject->GetRenderObject()) {
-						grabbedObject->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));
+		if (Window::GetMouse()->ButtonPressed(NCL::MouseButtons::Right) && playerObject) {
+			if (grabbedObject) {
+				releaseGrab(); // toggle release
+			}
+			else {
+				Vector3 origin = playerObject->GetTransform().GetPosition();
+				Vector3 forward = playerObject->GetTransform().GetOrientation() * Vector3(0, 0, 1);
+				forward = Vector::Normalise(forward);
+				Ray ray(origin, forward);
+				RayCollision hit;
+				Debug::DrawLine(origin, origin + forward * 100.0f, Vector4(1, 0, 0, 1));
+				if (world.Raycast(ray, hit, true, playerObject)) {
+					if (hit.rayDistance > grabMaxDistance) {
+						return; //
+					}
+					GameObject* hitObj = (GameObject*)hit.node;
+					PhysicsObject* phys = hitObj ? hitObj->GetPhysicsObject() : nullptr;
+					if (phys && phys->GetInverseMass() > 0.0f) {
+						grabbedObject = hitObj;
+						Quaternion invOrient = grabbedObject->GetTransform().GetOrientation().Conjugate();
+						Vector3 local = hit.collidedAt - grabbedObject->GetTransform().GetPosition();
+						grabLocalOffset = invOrient * local;
+						float desiredGrabDistance = 1.0f;
+						grabDistance = desiredGrabDistance;
+						if (grabbedObject->GetRenderObject()) {
+							grabbedObject->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));
+						}
 					}
 				}
 			}
@@ -738,28 +740,23 @@ void TutorialGame::HandleGrab() {
 	}
 
 	if (grabbedObject) {
-		if (!rightDown) {
-			releaseGrab();
+		Vector3 origin = playerObject->GetTransform().GetPosition();
+		Vector3 forward = playerObject->GetTransform().GetOrientation() * Vector3(0, 0, 1);
+		forward = Vector::Normalise(forward);
+
+		Vector3 targetPos = origin + forward * grabDistance;
+		Vector3 objPos = grabbedObject->GetTransform().GetPosition();
+		Vector3 worldAnchor = objPos + grabbedObject->GetTransform().GetOrientation() * grabLocalOffset;
+
+		Vector3 error = targetPos - worldAnchor;
+		PhysicsObject* phys = grabbedObject->GetPhysicsObject();
+		if (phys) {
+			Vector3 force = error * grabSpring - phys->GetLinearVelocity() * grabDamping;
+			phys->AddForceAtPosition(force, worldAnchor);
 		}
-		else {
-			Vector3 origin = playerObject->GetTransform().GetPosition();
-			Vector3 forward = playerObject->GetTransform().GetOrientation() * Vector3(0, 0, 1);
-			forward = Vector::Normalise(forward);
 
-			Vector3 targetPos = origin + forward * grabDistance;
-			Vector3 objPos = grabbedObject->GetTransform().GetPosition();
-			Vector3 worldAnchor = objPos + grabbedObject->GetTransform().GetOrientation() * grabLocalOffset;
-
-			Vector3 error = targetPos - worldAnchor;
-			PhysicsObject* phys = grabbedObject->GetPhysicsObject();
-			if (phys) {
-				Vector3 force = error * grabSpring - phys->GetLinearVelocity() * grabDamping;
-				phys->AddForceAtPosition(force, worldAnchor);
-			}
-
-			Debug::DrawLine(origin, targetPos, Vector4(1, 0, 0, 1));
-			Debug::DrawLine(worldAnchor, targetPos, Vector4(0, 1, 0, 1));
-		}
+		Debug::DrawLine(origin, targetPos, Vector4(1, 0, 0, 1));
+		Debug::DrawLine(worldAnchor, targetPos, Vector4(0, 1, 0, 1));
 	}
 }
 
@@ -776,8 +773,8 @@ void TutorialGame::InitEnemyAgent(const Vector3& pos) {
 		EnemyAI::Params params;
 		params.moveSpeed = 8.0f;
 		params.waypointTolerance = 0.5f;
-		params.chaseDistance = 80.0f;
-		params.loseDistance = 120.0f;
+		params.chaseDistance = 40.0f; // 縮短追擊距離
+		params.loseDistance = 70.0f;
 		params.repathPlayerDelta = 3.0f;
 		params.stuckTime = 1.25f;
 		params.stuckMoveEpsilon = 0.05f;
@@ -807,8 +804,8 @@ void TutorialGame::InitMazeEnemyAgent(const Vector3& pos) {
 		EnemyAI::Params params;
 		params.moveSpeed = 8.0f;
 		params.waypointTolerance = 2.0f;
-		params.chaseDistance = 80.0f;
-		params.loseDistance = 120.0f;
+		params.chaseDistance = 40.0f; // 縮短追擊距離
+		params.loseDistance = 50.0f;
 		params.repathPlayerDelta = 3.0f;
 		params.stuckTime = 1.25f;
 		params.stuckMoveEpsilon = 0.05f;
@@ -1045,6 +1042,8 @@ void TutorialGame::BuildSlopeScene() {
 		};
 		mazeEnemyAI->SetPatrolPoints(patrol);
 	}
+	// 额外平面
+	AddFloorToWorld(Vector3(0.0f, -1.0f, 230.0f));
 }
 
 void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
@@ -1120,6 +1119,15 @@ void TutorialGame::HandleBouncePad(float dt) {
 void TutorialGame::OnPlayerCaught() {
 	playerScore = 0;
 	if (playerObject) {
+		// 释放抓取的物体，避免被传送时一起带走
+		if (grabbedObject) {
+			if (grabbedObject->GetRenderObject()) {
+				grabbedObject->GetRenderObject()->SetColour(Vector4(1, 1, 1, 1));
+			}
+			grabbedObject = nullptr;
+			grabLocalOffset = Vector3();
+			grabDistance = 0.0f;
+		}
 		playerObject->GetTransform().SetPosition(playerSpawnPos);
 		if (auto* phys = playerObject->GetPhysicsObject()) {
 			phys->SetLinearVelocity(Vector3());

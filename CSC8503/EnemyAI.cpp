@@ -53,27 +53,27 @@ void EnemyAI::InitStates() {
 	stateMachine.AddTransition(new StateTransition(idleState, chaseState, [this]() {
 		if (!owner || !target) return false;
 		if (!IsTargetOnFloor()) return false;
-		float dist = Vector::Length(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
-		return dist < params.chaseDistance;
+		float distSq = Vector::LengthSquared(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
+		return distSq < params.chaseDistance * params.chaseDistance;
 	}));
 	stateMachine.AddTransition(new StateTransition(chaseState, idleState, [this]() {
 		if (!owner || !target) return true;
 		if (!IsTargetOnFloor()) return true;
-		float dist = Vector::Length(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
-		return dist > params.loseDistance;
+		float distSq = Vector::LengthSquared(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
+		return distSq > params.loseDistance * params.loseDistance;
 	}));
 	stateMachine.AddTransition(new StateTransition(chaseState, recoverState, [this]() {
 		return requestRecover;
 	}));
 	stateMachine.AddTransition(new StateTransition(recoverState, chaseState, [this]() {
 		if (!owner || !target) return false;
-		float dist = Vector::Length(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
-		return recoverTimer >= params.recoverDuration && dist < params.loseDistance;
+		float distSq = Vector::LengthSquared(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
+		return recoverTimer >= params.recoverDuration && distSq < params.loseDistance * params.loseDistance;
 	}));
 	stateMachine.AddTransition(new StateTransition(recoverState, idleState, [this]() {
 		if (!owner || !target) return recoverTimer >= params.recoverDuration;
-		float dist = Vector::Length(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
-		return recoverTimer >= params.recoverDuration && dist >= params.loseDistance;
+		float distSq = Vector::LengthSquared(target->GetTransform().GetPosition() - owner->GetTransform().GetPosition());
+		return recoverTimer >= params.recoverDuration && distSq >= params.loseDistance * params.loseDistance;
 	}));
 }
 
@@ -271,23 +271,9 @@ void EnemyAI::UpdateChase(float dt) {
 		seek = path[pathIndex];
 	}
 
-	// DEBUG: Print path status
-	Debug::Print("PathIdx: " + std::to_string(pathIndex) + "/" + std::to_string(path.size()), Vector2(5, 50), Debug::WHITE);
-	Debug::Print("Seek: " + std::to_string(seek.x) + ", " + std::to_string(seek.z), Vector2(5, 55), Debug::GREEN);
-	Debug::Print("Targ: " + std::to_string(targetPos.x) + ", " + std::to_string(targetPos.z), Vector2(5, 58), Debug::RED);
-	Debug::Print("Params.Funnel: " + std::to_string(params.useFunnel), Vector2(5, 30), Debug::CYAN);
-	
-	if (path.size() > 1) {
-		Vector3 p1 = path[1];
-		Debug::Print("P[1]: " + std::to_string(p1.x) + ", " + std::to_string(p1.z), Vector2(5, 45), Debug::CYAN);
-	}
-
 	Vector3 toTarget = seek - pos;
 	toTarget.y = 0.0f;
 	float dist = Vector::Length(toTarget);
-	
-	Debug::Print("Dist: " + std::to_string(dist), Vector2(5, 60), Debug::WHITE);
-	Debug::Print("Tol: " + std::to_string(params.waypointTolerance), Vector2(5, 65), Debug::WHITE);
 
 	// Advance path if close to waypoint
 	if (hasPath && pathIndex < path.size()) {
