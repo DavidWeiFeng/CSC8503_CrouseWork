@@ -347,6 +347,22 @@ void NetworkedGame::OnPlayerCollision(NetworkPlayer* a, NetworkPlayer* b) {
 	}
 }
 
+void NetworkedGame::SubmitScore(const std::string& name, int score) {
+	if (!thisServer) {
+		return;
+	}
+	UpdateHighScore(name, score);
+	HighScorePacket pkt;
+	pkt.count = std::min<int>((int)serverHighScores.size(), 8);
+	for (int i = 0; i < pkt.count; ++i) {
+		const auto& e = serverHighScores[i];
+		strncpy_s(pkt.entries[i].name, e.name.c_str(), sizeof(pkt.entries[i].name) - 1);
+		pkt.entries[i].name[sizeof(pkt.entries[i].name) - 1] = '\0';
+		pkt.entries[i].score = e.score;
+	}
+	thisServer->SendGlobalPacket(pkt);
+}
+
 void NetworkedGame::UpdateHighScore(const std::string& name, int score) {
 	bool found = false;
 	for (auto& e : serverHighScores) {

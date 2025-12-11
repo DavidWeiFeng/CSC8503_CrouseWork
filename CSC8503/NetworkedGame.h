@@ -55,6 +55,11 @@ namespace NCL::CSC8503 {
 
 		void ReceivePacket(int type, GamePacket* payload, int source) override;
 
+		// 服务器端更新高分并广播
+		void SubmitScore(const std::string& name, int score);
+		bool CanEnterHighScore(int score) const;
+		std::vector<ScoreEntry> GetScoresSnapshot() const;
+
 		void OnPlayerCollision(NetworkPlayer* a, NetworkPlayer* b);
 
 	protected:

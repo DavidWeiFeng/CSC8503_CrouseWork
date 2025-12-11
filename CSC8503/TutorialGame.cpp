@@ -266,6 +266,7 @@ void TutorialGame::UpdateGame(float dt) {
 	UpdateGateAndPlate(dt);   
 	HandleBouncePad(dt);
 	UpdateSweeper(dt);
+	HandleGoalPlate(dt);
 	UpdateEnemyAI(dt);        
 	UpdateCoinPickups();     
 	world.OperateOnContents(
@@ -353,6 +354,8 @@ void TutorialGame::InitWorld() {
 	sweeperStick = nullptr;
 	sweeperAngle = 0.0f;
 	sweeperHitActive = false;
+	goalPlate = nullptr;
+	goalTriggered = false;
 	if (enemyAI) {
 		delete enemyAI;
 		enemyAI = nullptr;
@@ -1018,8 +1021,8 @@ void TutorialGame::BuildSlopeScene() {
 
 	// Spawn player on the platform
 	float spawnOffsetY = platformHalfSize.y + playerRadius + 4.5f;
-	//playerSpawnPos = platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f);
-	playerSpawnPos = Vector3(0.0f, 10, 200.0f);
+	playerSpawnPos = platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f);
+	//playerSpawnPos = Vector3(0.0f, 10, 200.0f);
 	playerObject = AddPlayerToWorld(playerSpawnPos);
 
 	// Enemy spawn on floor area
@@ -1047,6 +1050,8 @@ void TutorialGame::BuildSlopeScene() {
 		};
 		mazeEnemyAI->SetPatrolPoints(patrol);
 	}
+	// 立即生成弹簧板（不再依赖金币收集）
+	SpawnBouncePad();
 	// 额外平面
 	AddFloorToWorld(Vector3(0.0f, -10.0f, 225.0f));
 	// 旋转木棍（扫堂腿）
@@ -1057,6 +1062,12 @@ void TutorialGame::BuildSlopeScene() {
 		sweeperStick->GetRenderObject()->SetColour(Vector4(0.6f, 0.3f, 0.1f, 1.0f));
 	}
 	sweeperAngle = 0.0f;
+	// 终点薄板
+	Vector3 goalPos = Vector3(0.0f, -8.9f, 250.0f);
+	goalPlate = AddCubeToWorld(goalPos, goalPlateHalf, 0.0f);
+	if (goalPlate && goalPlate->GetRenderObject()) {
+		goalPlate->GetRenderObject()->SetColour(Vector4(0.2f, 0.8f, 0.4f, 1.0f));
+	}
 }
 
 void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
@@ -1179,6 +1190,29 @@ void TutorialGame::UpdateSweeper(float dt) {
 		else {
 			sweeperHitActive = false; // 离开范围后才可再次触发
 		}
+	}
+}
+
+void TutorialGame::HandleGoalPlate(float dt) {
+	(void)dt;
+	if (goalTriggered || !goalPlate || !pushableCube) {
+		return;
+	}
+	Vector3 platePos = goalPlate->GetTransform().GetPosition();
+	Vector3 plateHalf = goalPlateHalf;
+	Vector3 cubePos = pushableCube->GetTransform().GetPosition();
+	Vector3 diff = cubePos - platePos;
+	bool overlapX = std::abs(diff.x) <= (plateHalf.x + pushCubeHalfSize.x);
+	bool overlapZ = std::abs(diff.z) <= (plateHalf.z + pushCubeHalfSize.z);
+	bool overlapY = std::abs(diff.y) <= (plateHalf.y + pushCubeHalfSize.y + 0.5f);
+	if (overlapX && overlapZ && overlapY) {
+		goalTriggered = true;
+		// 更新高分榜（若为网络模式服务器）
+		if (auto* net = dynamic_cast<NetworkedGame*>(this)) {
+			net->SubmitScore("Player", playerScore);
+		}
+		// 显示结束信息
+		Debug::Print("Goal reached! Score: " + std::to_string(playerScore), Vector2(40, 50), Debug::GREEN);
 	}
 }
 
