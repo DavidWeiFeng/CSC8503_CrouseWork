@@ -265,6 +265,7 @@ void TutorialGame::UpdateGame(float dt) {
 	HandlePlayerMovement(dt); 
 	UpdateGateAndPlate(dt);   
 	HandleBouncePad(dt);
+	UpdateSweeper(dt);
 	UpdateEnemyAI(dt);        
 	UpdateCoinPickups();     
 	world.OperateOnContents(
@@ -349,6 +350,9 @@ void TutorialGame::InitWorld() {
 	bouncePad = nullptr;
 	bouncePadSpawned = false;
 	playerOnBouncePad = false;
+	sweeperStick = nullptr;
+	sweeperAngle = 0.0f;
+	sweeperHitActive = false;
 	if (enemyAI) {
 		delete enemyAI;
 		enemyAI = nullptr;
@@ -1014,7 +1018,8 @@ void TutorialGame::BuildSlopeScene() {
 
 	// Spawn player on the platform
 	float spawnOffsetY = platformHalfSize.y + playerRadius + 4.5f;
-	playerSpawnPos = platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f);
+	//playerSpawnPos = platformPos + Vector3(-10.0f, spawnOffsetY, 0.0f);
+	playerSpawnPos = Vector3(0.0f, 10, 200.0f);
 	playerObject = AddPlayerToWorld(playerSpawnPos);
 
 	// Enemy spawn on floor area
@@ -1043,7 +1048,15 @@ void TutorialGame::BuildSlopeScene() {
 		mazeEnemyAI->SetPatrolPoints(patrol);
 	}
 	// 额外平面
-	AddFloorToWorld(Vector3(0.0f, -1.0f, 230.0f));
+	AddFloorToWorld(Vector3(0.0f, -10.0f, 225.0f));
+	// 旋转木棍（扫堂腿）
+	Vector3 stickPos = Vector3(0.0f, -9.0f, 225.0f);
+	Vector3 stickHalf = Vector3(sweeperLen * 0.5f, 0.2f, 0.4f);
+	sweeperStick = AddCubeToWorld(stickPos, stickHalf, 0.0f);
+	if (sweeperStick && sweeperStick->GetRenderObject()) {
+		sweeperStick->GetRenderObject()->SetColour(Vector4(0.6f, 0.3f, 0.1f, 1.0f));
+	}
+	sweeperAngle = 0.0f;
 }
 
 void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
@@ -1113,6 +1126,59 @@ void TutorialGame::HandleBouncePad(float dt) {
 	}
 	else if (!touching) {
 		playerOnBouncePad = false;
+	}
+}
+
+void TutorialGame::UpdateSweeper(float dt) {
+	if (!sweeperStick) {
+		return;
+	}
+	sweeperAngle += sweeperAngularSpeed * dt;
+	Quaternion rot = Quaternion::AxisAngleToQuaterion(Vector3(0, 1, 0), sweeperAngle * 180.0f / 3.1415926f);
+	sweeperStick->GetTransform().SetOrientation(rot);
+
+	// 玩家被扫
+	if (playerObject) {
+		Vector3 stickPos = sweeperStick->GetTransform().GetPosition();
+		Vector3 dir = rot * Vector3(1, 0, 0); // 棍子朝向（平面内）
+		dir.y = 0.0f;
+		dir = Vector::Normalise(dir);
+		Vector3 p = playerObject->GetTransform().GetPosition();
+
+		// 棍子线段端点
+		Vector3 a = stickPos - dir * (sweeperLen * 0.5f);
+		Vector3 b = stickPos + dir * (sweeperLen * 0.5f);
+
+		// 投影计算玩家到线段距离（XZ 平面）
+		Vector3 ap = p - a;
+		ap.y = 0.0f;
+		Vector3 ab = b - a;
+		ab.y = 0.0f;
+		float abLenSq = Vector::LengthSquared(ab);
+		float t = abLenSq > 1e-5f ? Vector::Dot(ap, ab) / abLenSq : 0.0f;
+		t = std::clamp(t, 0.0f, 1.0f);
+		Vector3 closest = a + ab * t;
+		Vector3 diff = p - closest;
+		diff.y = 0.0f;
+		float dist = Vector::Length(diff);
+
+		if (dist < sweeperThickness) {
+			if (!sweeperHitActive) {
+				PhysicsObject* phys = playerObject->GetPhysicsObject();
+				if (phys) {
+					Vector3 tangent = Vector3(-dir.z, 0.0f, dir.x); // 90 度旋转
+					float radius = std::max(0.5f, Vector::Length(p - stickPos));
+					float linearSpeed = sweeperAngularSpeed * radius;
+					Vector3 impulse = tangent * (sweeperImpulseScale * linearSpeed);
+					impulse.y += sweeperUpImpulse;
+					phys->ApplyLinearImpulse(impulse);
+				}
+				sweeperHitActive = true;
+			}
+		}
+		else {
+			sweeperHitActive = false; // 离开范围后才可再次触发
+		}
 	}
 }
 

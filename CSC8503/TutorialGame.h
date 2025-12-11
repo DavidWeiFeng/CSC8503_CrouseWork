@@ -54,6 +54,7 @@ namespace NCL {
 			void UpdateGateAndPlate(float dt);
 			void HandleBouncePad(float dt);
 			void SpawnBouncePad();
+			void UpdateSweeper(float dt);
 
 			bool SelectObject();
 			void MoveSelectedObject();
@@ -133,6 +134,14 @@ namespace NCL {
 			GameObject* bouncePad = nullptr;
 			bool bouncePadSpawned = false;
 			bool playerOnBouncePad = false;
+			GameObject* sweeperStick = nullptr;
+			float sweeperAngle = 0.0f;
+			float sweeperAngularSpeed = 1.5f;
+			float sweeperLen = 30.0f;
+			float sweeperThickness = 1.0f;
+			float sweeperImpulseScale = 25.0f;
+			float sweeperUpImpulse = 40.0f;
+			bool sweeperHitActive = false;
 			NCL::Maths::Vector3 floorCenter = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 floorHalfSize = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 mazeMin = NCL::Maths::Vector3();
