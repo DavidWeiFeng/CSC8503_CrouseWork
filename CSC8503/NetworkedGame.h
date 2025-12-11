@@ -24,6 +24,20 @@ namespace NCL::CSC8503 {
 		}
 	};
 
+	struct HighScoreEntryNet {
+		char name[32];
+		int  score;
+	};
+
+	struct HighScorePacket : public GamePacket {
+		int count = 0;
+		HighScoreEntryNet entries[8];
+		HighScorePacket() {
+			type = BasicNetworkMessages::HighScore_Data;
+			size = sizeof(HighScorePacket) - sizeof(GamePacket);
+		}
+	};
+
 	class NetworkedGame : public TutorialGame, public PacketReceiver 
 	{
 	public:
@@ -62,5 +76,18 @@ namespace NCL::CSC8503 {
 		std::map<int, PlayerInputPacket> latestClientInput; // Added
 		GameObject* localPlayer;
 		int localNetworkID = -1;
+
+		struct ScoreEntry {
+			std::string name;
+			int score = 0;
+		};
+		std::vector<ScoreEntry> serverHighScores;
+		std::vector<ScoreEntry> clientHighScores;
+		double lastScoreRequestTime = 0.0;
+		int cachedServerScore = 0;
+
+		void UpdateHighScore(const std::string& name, int score);
+		void LoadHighScores();
+		void SaveHighScores();
 	};
 }

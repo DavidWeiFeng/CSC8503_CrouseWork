@@ -14,6 +14,7 @@
 #include "Debug.h"
 #include "KeyboardMouseController.h"
 #include "GameTechRendererInterface.h"
+#include "NetworkedGame.h"
 #include "Ray.h"
 #include "OBBVolume.h"
 #include "Assets.h"
@@ -121,10 +122,11 @@ bool TutorialGame::HandleStartMenu(float dt) {
 	const Keyboard* kb = Window::GetKeyboard();
 	const char* items[] = {
 		"[1] Single Player",
-		"[2] Multi Player",
-		"[Q] Quit Game"
+		"[2] Multiplayer - Host",
+		"[3] Multiplayer - Client",
+		"[Q] Quit"
 	};
-	const int itemCount = 3;
+	const int itemCount = 4;
 
 	if (kb->KeyPressed(KeyCodes::W) || kb->KeyPressed(KeyCodes::UP)) {
 		menuSelection = (menuSelection + itemCount - 1) % itemCount;
@@ -139,13 +141,47 @@ bool TutorialGame::HandleStartMenu(float dt) {
 			InitWorld();
 		}
 		else if (menuSelection == 1) {
-			currentMode = GameMode::Multi; // placeholder, uses same world for now
+			if (auto* net = dynamic_cast<NetworkedGame*>(this)) {
+				net->StartAsServer();
+			}
+			currentMode = GameMode::Multi;
 			inStartMenu = false;
-			InitWorld();
 		}
 		else { // Quit
-			std::exit(0);
+			if (menuSelection == 2) {
+				if (auto* net = dynamic_cast<NetworkedGame*>(this)) {
+					std::array<char, 4> ipBytes = {127,0,0,1};
+					sscanf_s(ipInput.c_str(), "%hhd.%hhd.%hhd.%hhd", &ipBytes[0], &ipBytes[1], &ipBytes[2], &ipBytes[3]);
+					net->StartAsClient(ipBytes[0], ipBytes[1], ipBytes[2], ipBytes[3]);
+				}
+				currentMode = GameMode::Multi;
+				inStartMenu = false;
+			}
+			else {
+				std::exit(0);
+			}
 		}
+	}
+	// IP 编辑
+	if (menuSelection == 2) {
+		editingIP = true;
+		for (int k = 0; k <= 9; ++k) {
+			if (kb->KeyPressed(static_cast<KeyCodes::Type>(KeyCodes::NUM0 + k))) {
+				ipInput.push_back(char('0' + k));
+			}
+		}
+		if (kb->KeyPressed(KeyCodes::PERIOD)) {
+			ipInput.push_back('.');
+		}
+		if (kb->KeyPressed(KeyCodes::BACK)) {
+			if (!ipInput.empty()) ipInput.pop_back();
+		}
+		// 限制长度
+		if (ipInput.size() > 15) {
+			ipInput.resize(15);
+		}
+	} else {
+		editingIP = false;
 	}
 	// Toggle fullscreen with F11 (common shortcut)
 	if (kb->KeyPressed(KeyCodes::F11)) {
@@ -165,12 +201,18 @@ bool TutorialGame::HandleStartMenu(float dt) {
 	for (int i = 0; i < itemCount; ++i) {
 		Vector4 col = (i == menuSelection) ? Debug::YELLOW : Debug::WHITE;
 		std::string line = std::string(i == menuSelection ? "> " : "  ") + items[i];
+		if (i == 2) {
+			line += " IP:" + ipInput + (editingIP ? "_" : "");
+		}
 		Debug::Print(line, Vector2(35, startY - step * i), col);
 	}
 
 	Debug::Print("Controls:", Vector2(5, 20), Debug::CYAN);
 	Debug::Print("Move: WASD | Jump: SPACE | Grab: RMB", Vector2(5, 15), Debug::WHITE);
 	Debug::Print("Menu: UP/DOWN to navigate, ENTER to select", Vector2(5, 10), Debug::WHITE);
+	if (menuSelection == 2) {
+		Debug::Print("編輯IP: 數字/點號輸入, Backspace刪除", Vector2(5, 5), Debug::WHITE);
+	}
 
 	return true; // block game update until a choice is made
 }
@@ -222,6 +264,7 @@ void TutorialGame::UpdateGame(float dt) {
 	HandleGrab();
 	HandlePlayerMovement(dt); 
 	UpdateGateAndPlate(dt);   
+	HandleBouncePad(dt);
 	UpdateEnemyAI(dt);        
 	UpdateCoinPickups();     
 	world.OperateOnContents(
@@ -303,6 +346,9 @@ void TutorialGame::InitWorld() {
 	gateRightObject = nullptr;
 	gateOpen = false;
 	gateAnimT = 0.0f;
+	bouncePad = nullptr;
+	bouncePadSpawned = false;
+	playerOnBouncePad = false;
 	if (enemyAI) {
 		delete enemyAI;
 		enemyAI = nullptr;
@@ -314,6 +360,7 @@ void TutorialGame::InitWorld() {
 	}
 	mazeEnemyObject = nullptr;
 	physics.UseGravity(true);
+	floorCoins.clear();
 	BuildSlopeScene();
 }
 
@@ -912,7 +959,8 @@ void TutorialGame::BuildSlopeScene() {
 		float coinY = floorCenter.y + 1.2f + coinRadius + 0.05f;
 		Vector3 coinPos(distX(rng), coinY, distZ(rng));
 
-		AddCoinToWorld(coinPos);
+		GameObject* c = AddCoinToWorld(coinPos);
+		floorCoins.insert(c);
 
 	}
 
@@ -1019,6 +1067,54 @@ void TutorialGame::OnPlayerCollectCoin(GameObject* coin) {
 		pendingRemoval.push_back({ coin, 8 });
 	}
 	coins.erase(std::remove(coins.begin(), coins.end(), coin), coins.end());
+	// 统计地面金币，全部收集后生成弹力板
+	if (floorCoins.find(coin) != floorCoins.end()) {
+		floorCoins.erase(coin);
+		if (floorCoins.empty() && !bouncePadSpawned) {
+			SpawnBouncePad();
+		}
+	}
+}
+
+void TutorialGame::SpawnBouncePad() {
+	if (bouncePadSpawned) {
+		return;
+	}
+	Vector3 padHalfSize = Vector3(4.0f, 0.5f, 4.0f);
+	Vector3 padPos = floorCenter + Vector3(0.0f, padHalfSize.y,floorHalfSize.z + padHalfSize.z + 1.0f);
+	bouncePad = AddCubeToWorld(padPos, padHalfSize, 0.0f);
+	if (bouncePad && bouncePad->GetRenderObject()) {
+		bouncePad->GetRenderObject()->SetColour(Vector4(1.0f, 0.4f, 0.2f, 1.0f));
+	}
+	bouncePadSpawned = true;
+}
+
+void TutorialGame::HandleBouncePad(float dt) {
+	(void)dt;
+	if (!bouncePad || !playerObject) {
+		return;
+	}
+	Vector3 padPos = bouncePad->GetTransform().GetPosition();
+	Vector3 padHalf = bouncePad->GetTransform().GetScale() * 0.5f;
+	Vector3 playerPos = playerObject->GetTransform().GetPosition();
+
+	bool insideXZ = std::abs(playerPos.x - padPos.x) <= padHalf.x && std::abs(playerPos.z - padPos.z) <= padHalf.z;
+	float padTopY = padPos.y + padHalf.y;
+	bool abovePad = playerPos.y >= padTopY - 0.2f && playerPos.y <= padTopY + 1.5f;
+	bool touching = insideXZ && abovePad;
+
+	if (touching && !playerOnBouncePad) {
+		if (auto* phys = playerObject->GetPhysicsObject()) {
+			Vector3 vel = phys->GetLinearVelocity();
+			vel.y = std::max(vel.y, 0.0f); // 不要向下抵消过头
+			phys->SetLinearVelocity(vel);
+			phys->ApplyLinearImpulse(Vector3(0.0f, playerJumpImpulse * 5.5f, 0.0f));
+		}
+		playerOnBouncePad = true;
+	}
+	else if (!touching) {
+		playerOnBouncePad = false;
+	}
 }
 
 void TutorialGame::OnPlayerCaught() {

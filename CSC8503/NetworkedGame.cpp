@@ -9,6 +9,8 @@
 #include "Matrix.h"
 #include "Quaternion.h"
 #include <chrono>
+#include <fstream>
+#include "Debug.h"
 
 #define COLLISION_MSG 30
 #define PLAYER_ID_MSG 31 // Handshake message
@@ -37,6 +39,9 @@ NetworkedGame::NetworkedGame(GameWorld& gameWorld, GameTechRendererInterface& re
 }
 
 NetworkedGame::~NetworkedGame()	{
+	if (thisServer) {
+		SaveHighScores();
+	}
 	delete thisServer;
 	delete thisClient;
 }
@@ -46,7 +51,9 @@ void NetworkedGame::StartAsServer() {
 
 	thisServer->RegisterPacketHandler(Received_State, this);
 	thisServer->RegisterPacketHandler(Player_Input, this);
+	thisServer->RegisterPacketHandler(HighScore_Request, this);
 
+	LoadHighScores();
 	StartLevel();
 }
 
@@ -59,6 +66,7 @@ void NetworkedGame::StartAsClient(char a, char b, char c, char d) {
 	thisClient->RegisterPacketHandler(Player_Connected, this);
 	thisClient->RegisterPacketHandler(Player_Disconnected, this);
 	thisClient->RegisterPacketHandler(Message, this); // handshake / misc messages
+	thisClient->RegisterPacketHandler(HighScore_Data, this);
 
 	StartLevel();
 }
@@ -79,7 +87,7 @@ void NetworkedGame::UpdateGame(float dt) {
 		else if (thisClient) {
 			UpdateAsClient(dt);
 		}
-		timeToNextPacket += 1.0f / 60.0f; // 30hz server/client update，降低输入-回传间隔
+		timeToNextPacket += 1.0f / 30.0f; // 30hz server/client update，降低输入-回传间隔
 	}
 
 	if (!inStartMenu && !thisServer && Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
@@ -97,6 +105,39 @@ void NetworkedGame::UpdateGame(float dt) {
 			if (netObj) {
 				netObj->ClientInterpolate(now, interpBack);
 			}
+		}
+	}
+
+	// TAB 显示排行榜，并按需请求
+	if (Window::GetKeyboard()->KeyDown(KeyCodes::TAB)) {
+		double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		if (thisClient) {
+			if (now - lastScoreRequestTime > 0.5) {
+				GamePacket req;
+				req.type = HighScore_Request;
+				req.size = 0;
+				thisClient->SendPacket(req);
+				lastScoreRequestTime = now;
+			}
+		}
+		std::vector<ScoreEntry> toShow;
+		if (thisServer) {
+			toShow = serverHighScores;
+		}
+		else {
+			toShow = clientHighScores;
+		}
+		Vector2 basePos(65.0f, 80.0f);
+		Debug::Print("=== High Score ===", basePos, Debug::YELLOW);
+		Debug::Print("#    NAME                 SCORE", basePos - Vector2(0, 3.0f), Debug::WHITE);
+		if (toShow.empty()) {
+			Debug::Print("No Data", basePos - Vector2(0, 6.0f), Debug::WHITE);
+		}
+		for (size_t i = 0; i < toShow.size() && i < 8; ++i) {
+			const auto& e = toShow[i];
+			char line[64];
+			snprintf(line, sizeof(line), "%-2zu   %-18s   %5d", i + 1, e.name.c_str(), e.score);
+			Debug::Print(line, basePos - Vector2(0, 9.0f + float(i) * 3.0f), Debug::WHITE);
 		}
 	}
 
@@ -266,6 +307,31 @@ void NetworkedGame::ReceivePacket(int type, GamePacket* payload, int source) {
 			std::cout << "Client: Received assigned Network ID: " << localNetworkID << std::endl;
 		}
 	}
+	else if (type == HighScore_Request) {
+		if (thisServer) {
+			HighScorePacket pkt;
+			pkt.count = std::min<int>((int)serverHighScores.size(), 8);
+			for (int i = 0; i < pkt.count; ++i) {
+				const auto& e = serverHighScores[i];
+				strncpy_s(pkt.entries[i].name, e.name.c_str(), sizeof(pkt.entries[i].name) - 1);
+				pkt.entries[i].name[sizeof(pkt.entries[i].name) - 1] = '\0';
+				pkt.entries[i].score = e.score;
+			}
+			thisServer->SendPacketToPeer(pkt, source);
+		}
+	}
+	else if (type == HighScore_Data) {
+		if (thisClient) {
+			HighScorePacket* pkt = (HighScorePacket*)payload;
+			clientHighScores.clear();
+			for (int i = 0; i < pkt->count && i < 8; ++i) {
+				ScoreEntry e;
+				e.name = pkt->entries[i].name;
+				e.score = pkt->entries[i].score;
+				clientHighScores.push_back(e);
+			}
+		}
+	}
 }
 
 void NetworkedGame::OnPlayerCollision(NetworkPlayer* a, NetworkPlayer* b) {
@@ -278,6 +344,54 @@ void NetworkedGame::OnPlayerCollision(NetworkPlayer* a, NetworkPlayer* b) {
 
 		newPacket.playerID = b->GetPlayerNum();
 		thisServer->SendGlobalPacket(newPacket);
+	}
+}
+
+void NetworkedGame::UpdateHighScore(const std::string& name, int score) {
+	bool found = false;
+	for (auto& e : serverHighScores) {
+		if (e.name == name) {
+			e.score = std::max(e.score, score);
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		serverHighScores.push_back({ name, score });
+	}
+	std::sort(serverHighScores.begin(), serverHighScores.end(), [](const ScoreEntry& a, const ScoreEntry& b) {
+		return a.score > b.score;
+	});
+	if (serverHighScores.size() > 8) {
+		serverHighScores.resize(8);
+	}
+	SaveHighScores();
+}
+
+void NetworkedGame::LoadHighScores() {
+	serverHighScores.clear();
+	std::ifstream f("HighScores.txt");
+	if (!f.is_open()) {
+		return;
+	}
+	std::string name;
+	int score;
+	while (f >> name >> score) {
+		serverHighScores.push_back({ name, score });
+	}
+	std::sort(serverHighScores.begin(), serverHighScores.end(), [](const ScoreEntry& a, const ScoreEntry& b) {
+		return a.score > b.score;
+	});
+	if (serverHighScores.size() > 8) {
+		serverHighScores.resize(8);
+	}
+}
+
+void NetworkedGame::SaveHighScores() {
+	std::ofstream f("HighScores.txt", std::ios::trunc);
+	if (!f.is_open()) return;
+	for (const auto& e : serverHighScores) {
+		f << e.name << " " << e.score << "\n";
 	}
 }
 
@@ -329,6 +443,22 @@ void NetworkedGame::UpdateAsServer(float dt) {
 		}
 	}
 	latestClientInput.clear(); // Clear inputs after processing
+
+	// 更新主机分数到排行榜（只跟踪主机分数，演示用）
+	if (playerScore > cachedServerScore) {
+		cachedServerScore = playerScore;
+		UpdateHighScore("Host", playerScore);
+		// 推送最新榜单给所有客户端
+		HighScorePacket pkt;
+		pkt.count = std::min<int>((int)serverHighScores.size(), 8);
+		for (int i = 0; i < pkt.count; ++i) {
+			const auto& e = serverHighScores[i];
+			strncpy_s(pkt.entries[i].name, e.name.c_str(), sizeof(pkt.entries[i].name) - 1);
+			pkt.entries[i].name[sizeof(pkt.entries[i].name) - 1] = '\0';
+			pkt.entries[i].score = e.score;
+		}
+		thisServer->SendGlobalPacket(pkt);
+	}
 
 	packetsToSnapshot--;
 	if (packetsToSnapshot < 0) {

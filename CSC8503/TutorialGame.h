@@ -1,6 +1,8 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <unordered_set>
+#include <array>
 #include "RenderObject.h"
 #include "PositionConstraint.h"
 #include "NavigationMesh.h"
@@ -21,6 +23,7 @@ namespace NCL {
 		class GameWorld;
 		class GameObject;
 		class PositionConstraint;
+		class NetworkedGame;
 
 		class TutorialGame {
 		public:
@@ -49,6 +52,8 @@ namespace NCL {
 			void CreateAABBGrid(int numRows, int numCols, float rowSpacing, float colSpacing, const NCL::Maths::Vector3& cubeDims);
 			void BuildSlopeScene();
 			void UpdateGateAndPlate(float dt);
+			void HandleBouncePad(float dt);
+			void SpawnBouncePad();
 
 			bool SelectObject();
 			void MoveSelectedObject();
@@ -98,6 +103,8 @@ namespace NCL {
 			enum class GameMode { Single, Multi };
 			GameMode currentMode = GameMode::Single;
 			bool isFullscreen = false;
+			std::string ipInput = "127.0.0.1";
+			bool editingIP = false;
 
 			float		forceMagnitude;
 			float		playerMoveForce = 30.0f;
@@ -123,6 +130,9 @@ namespace NCL {
 			GameObject* gateRightObject = nullptr;
 			bool gateOpen = false;
 			float gateAnimT = 0.0f;
+			GameObject* bouncePad = nullptr;
+			bool bouncePadSpawned = false;
+			bool playerOnBouncePad = false;
 			NCL::Maths::Vector3 floorCenter = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 floorHalfSize = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 mazeMin = NCL::Maths::Vector3();
@@ -180,6 +190,7 @@ namespace NCL {
 			NCL::Maths::Vector3 grabLocalOffset = NCL::Maths::Vector3();
 			float grabDistance = 0.0f;
 			std::vector<GameObject*> coins;
+			std::unordered_set<GameObject*> floorCoins;
 			float coinRadius = 0.2f;
 			std::string mazeStatus = "not loaded";
 		};
