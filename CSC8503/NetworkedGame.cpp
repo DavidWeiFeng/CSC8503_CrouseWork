@@ -127,18 +127,29 @@ void NetworkedGame::UpdateGame(float dt) {
 		else {
 			toShow = clientHighScores;
 		}
-		Vector2 basePos(65.0f, 80.0f);
-		Debug::Print("=== High Score ===", basePos, Debug::YELLOW);
-		Debug::Print("#    NAME                 SCORE", basePos - Vector2(0, 3.0f), Debug::WHITE);
+		float y = 40.0f;
+		Vector2 pos(20.0f, y); // 居中
+		Debug::Print("================= HIGH SCORES =================", pos, Debug::YELLOW);
+		y += 3.0f;
+		Debug::Print(" Rank     Name                Score", Vector2(pos.x, y), Debug::WHITE);
+		y += 3.0f;
+		Debug::Print("-----------------------------------------------", Vector2(pos.x, y), Debug::WHITE);
+		y += 3.0f;
 		if (toShow.empty()) {
-			Debug::Print("No Data", basePos - Vector2(0, 6.0f), Debug::WHITE);
+			Debug::Print(" No Data", Vector2(pos.x, y), Debug::WHITE);
+			y += 3.0f;
 		}
 		for (size_t i = 0; i < toShow.size() && i < 8; ++i) {
 			const auto& e = toShow[i];
-			char line[64];
-			snprintf(line, sizeof(line), "%-2zu   %-18s   %5d", i + 1, e.name.c_str(), e.score);
-			Debug::Print(line, basePos - Vector2(0, 9.0f + float(i) * 3.0f), Debug::WHITE);
+			char line[80];
+			snprintf(line, sizeof(line), "  %-2zu     %-18s %-6d", i + 1, e.name.c_str(), e.score);
+			Debug::Print(line, Vector2(pos.x, y), Debug::WHITE);
+			y += 3.0f;
 		}
+		Debug::Print("===============================================", Vector2(pos.x, y), Debug::YELLOW);
+		y += 3.0f;
+		Debug::Print(" Your Score: " + std::to_string(playerScore), Vector2(pos.x, y), Debug::CYAN);
+		y += 3.0f;
 	}
 
 	TutorialGame::UpdateGame(dt);
@@ -361,6 +372,20 @@ void NetworkedGame::SubmitScore(const std::string& name, int score) {
 		pkt.entries[i].score = e.score;
 	}
 	thisServer->SendGlobalPacket(pkt);
+}
+
+bool NetworkedGame::CanEnterHighScore(int score) const {
+	const std::vector<ScoreEntry>& list = thisServer ? serverHighScores : clientHighScores;
+	if (list.size() < 8) return true;
+	int minScore = list.back().score;
+	return score > minScore;
+}
+
+std::vector<NetworkedGame::ScoreEntry> NetworkedGame::GetScoresSnapshot() const {
+	if (thisServer) {
+		return serverHighScores;
+	}
+	return clientHighScores;
 }
 
 void NetworkedGame::UpdateHighScore(const std::string& name, int score) {

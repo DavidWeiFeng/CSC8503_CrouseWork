@@ -225,8 +225,14 @@ void TutorialGame::UpdateGame(float dt) {
 	}
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F1)) {
-		InitWorld(); //We can reset the simulation at any time with F1
-		selectionObject = nullptr;
+		if (showGameOver) {
+			inStartMenu = true;
+			InitWorld();
+			return;
+		} else {
+			InitWorld(); //We can reset the simulation at any time with F1
+			selectionObject = nullptr;
+		}
 	}
 
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F2)) {
@@ -244,6 +250,11 @@ void TutorialGame::UpdateGame(float dt) {
 	}
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F8)) {
 		world.ShuffleObjects(false);
+	}
+
+	if (showGameOver) {
+		RenderGameOverUI(dt);
+		return;
 	}
 
 	if (lockedObject) {
@@ -356,6 +367,10 @@ void TutorialGame::InitWorld() {
 	sweeperHitActive = false;
 	goalPlate = nullptr;
 	goalTriggered = false;
+	showGameOver = false;
+	highScoreEligible = false;
+	nameSubmitted = false;
+	nameInput.clear();
 	if (enemyAI) {
 		delete enemyAI;
 		enemyAI = nullptr;
@@ -1131,7 +1146,7 @@ void TutorialGame::HandleBouncePad(float dt) {
 			Vector3 vel = phys->GetLinearVelocity();
 			vel.y = std::max(vel.y, 0.0f); // 不要向下抵消过头
 			phys->SetLinearVelocity(vel);
-			phys->ApplyLinearImpulse(Vector3(0.0f, playerJumpImpulse * 5.5f, 0.0f));
+			phys->ApplyLinearImpulse(Vector3(0.0f, playerJumpImpulse * 9.0f, 0.0f));
 		}
 		playerOnBouncePad = true;
 	}
@@ -1207,12 +1222,78 @@ void TutorialGame::HandleGoalPlate(float dt) {
 	bool overlapY = std::abs(diff.y) <= (plateHalf.y + pushCubeHalfSize.y + 0.5f);
 	if (overlapX && overlapZ && overlapY) {
 		goalTriggered = true;
-		// 更新高分榜（若为网络模式服务器）
+		showGameOver = true;
+		nameSubmitted = false;
+		highScoreEligible = false;
 		if (auto* net = dynamic_cast<NetworkedGame*>(this)) {
-			net->SubmitScore("Player", playerScore);
+			highScoreEligible = net->CanEnterHighScore(playerScore);
+		} else {
+			highScoreEligible = false;
 		}
-		// 显示结束信息
-		Debug::Print("Goal reached! Score: " + std::to_string(playerScore), Vector2(40, 50), Debug::GREEN);
+	}
+}
+
+void TutorialGame::RenderGameOverUI(float dt) {
+	(void)dt;
+	// 背景图
+	Rendering::Texture* bgTex = glassTex ? glassTex : (defaultTex ? defaultTex : checkerTex);
+	if (bgTex) {
+		Debug::DrawTex(*bgTex, Vector2(50, 50), Vector2(80, 80), Vector4(1, 1, 1, 0.7f));
+	}
+	Vector2 base(25, 80);
+	Debug::Print("=== GAME OVER ===", base, Debug::YELLOW);
+	Debug::Print("Score: " + std::to_string(playerScore), base - Vector2(0, 5), Debug::WHITE);
+	Debug::Print("Press F1 to return to Menu", base - Vector2(0, 10), Debug::WHITE);
+
+	if (highScoreEligible && !nameSubmitted) {
+		Debug::Print("Congratulations! New High Score", base - Vector2(0, 15), Debug::GREEN);
+		Debug::Print("Enter Name: " + nameInput + "_", base - Vector2(0, 20), Debug::WHITE);
+		// 输入处理
+		auto* kb = Window::GetKeyboard();
+		for (char c = 'A'; c <= 'Z'; ++c) {
+			KeyCodes::Type code = (KeyCodes::Type)(KeyCodes::A + (c - 'A'));
+			if (kb->KeyPressed(code) && nameInput.size() < 12) {
+				nameInput.push_back(c);
+			}
+		}
+		for (char c = '0'; c <= '9'; ++c) {
+			KeyCodes::Type code = (KeyCodes::Type)(KeyCodes::NUM0 + (c - '0'));
+			if (kb->KeyPressed(code) && nameInput.size() < 12) {
+				nameInput.push_back(c);
+			}
+		}
+		if (kb->KeyPressed(KeyCodes::SPACE) && nameInput.size() < 12) {
+			nameInput.push_back(' ');
+		}
+		if (kb->KeyPressed(KeyCodes::BACK) && !nameInput.empty()) {
+			nameInput.pop_back();
+		}
+		if (kb->KeyPressed(KeyCodes::RETURN)) {
+			if (auto* net = dynamic_cast<NetworkedGame*>(this)) {
+				std::string nm = nameInput.empty() ? "Player" : nameInput;
+				net->SubmitScore(nm, playerScore);
+			}
+			nameSubmitted = true;
+		}
+	} else if (highScoreEligible && nameSubmitted) {
+		Debug::Print("Score submitted!", base - Vector2(0, 15), Debug::GREEN);
+	}
+
+	// 显示排行榜提示
+	if (auto* net = dynamic_cast<NetworkedGame*>(this)) {
+		auto scores = net->GetScoresSnapshot();
+		if (!scores.empty()) {
+			Debug::Print("Leaderboard:", base - Vector2(0, 25), Debug::YELLOW);
+			Debug::Print("#    NAME                 SCORE", base - Vector2(0, 28), Debug::WHITE);
+			for (size_t i = 0; i < scores.size() && i < 5; ++i) {
+				const auto& e = scores[i];
+				char line[64];
+				snprintf(line, sizeof(line), "%-2zu   %-16s   %5d", i + 1, e.name.c_str(), e.score);
+				Debug::Print(line, base - Vector2(0, 31 + float(i) * 3.0f), Debug::WHITE);
+			}
+		}
+	} else {
+		Debug::Print("Leaderboard available in network mode", base - Vector2(0, 25), Debug::WHITE);
 	}
 }
 

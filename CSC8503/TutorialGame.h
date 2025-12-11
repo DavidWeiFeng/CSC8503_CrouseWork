@@ -56,6 +56,7 @@ namespace NCL {
 			void SpawnBouncePad();
 			void UpdateSweeper(float dt);
 			void HandleGoalPlate(float dt);
+			void RenderGameOverUI(float dt);
 
 			bool SelectObject();
 			void MoveSelectedObject();
@@ -146,6 +147,11 @@ namespace NCL {
 			GameObject* goalPlate = nullptr;
 			bool goalTriggered = false;
 			NCL::Maths::Vector3 goalPlateHalf = NCL::Maths::Vector3(2.0f, 0.1f, 2.0f);
+			// 结算界面
+			bool showGameOver = false;
+			bool highScoreEligible = false;
+			bool nameSubmitted = false;
+			std::string nameInput = "";
 			NCL::Maths::Vector3 floorCenter = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 floorHalfSize = NCL::Maths::Vector3();
 			NCL::Maths::Vector3 mazeMin = NCL::Maths::Vector3();
