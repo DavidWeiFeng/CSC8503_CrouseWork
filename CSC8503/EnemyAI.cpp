@@ -215,9 +215,9 @@ void EnemyAI::UpdatePatrol(float dt) {
 			pathIndex++;
 			return;
 		}
-		if (Vector::LengthSquared(toTarget) > 1e-4f) {
-			Vector3 dir = Vector::Normalise(toTarget);
-			float step = params.moveSpeed * dt;
+	if (Vector::LengthSquared(toTarget) > 1e-4f) {
+		Vector3 dir = Vector::Normalise(toTarget);
+		float step = params.moveSpeed * dt;
 			Vector3 newPos = pos + dir * step;
 			if (Vector::Length(newPos - pos) > dist) {
 				newPos = seek;
@@ -307,7 +307,7 @@ void EnemyAI::UpdateChase(float dt) {
 	// Movement logic
 	if (dist > 0.1f) { // Simple epsilon
 		Vector3 dir = Vector::Normalise(toTarget);
-		float step = params.moveSpeed * dt;
+		float step = params.chaseSpeed * dt;
 		
 		// Direct position manipulation for reliable movement (kinematic-like)
 		Vector3 newPos = pos + dir * step;

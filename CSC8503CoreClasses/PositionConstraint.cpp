@@ -48,8 +48,8 @@ void PositionConstraint::UpdateConstraint(float dt)
 	}
 
 	Vector3 correction = dir * (error / totalInvMass);
-	const float correctionFactor = 0.25f; // softer pull to allow dragging
-	const float velDamp = 0.98f; // keep most velocity, avoid freezing
+	const float correctionFactor = 0.20f; // softer pull to allow dragging
+	const float velDamp = 1.0f; // keep most velocity, avoid freezing
 
 	// Apply positional correction
 	if (physA && invMassA > 0.0f) {

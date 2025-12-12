@@ -106,6 +106,7 @@ namespace NCL {
 			int  menuSelection = 0; // 0 = single, 1 = multiplayer
 			enum class GameMode { Single, Multi };
 			GameMode currentMode = GameMode::Single;
+			bool mouseReleased = false;
 			bool isFullscreen = false;
 			std::string ipInput = "127.0.0.1";
 			bool editingIP = false;
@@ -191,6 +192,7 @@ namespace NCL {
 			Rendering::Texture* defaultTex  = nullptr;
 			Rendering::Texture* checkerTex	= nullptr;
 			Rendering::Texture* glassTex	= nullptr;
+			Rendering::Texture* skyboxFaceTex = nullptr;
 
 			//Coursework Meshes
 			Rendering::Mesh* catMesh	= nullptr;

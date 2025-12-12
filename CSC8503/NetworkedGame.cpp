@@ -99,7 +99,7 @@ void NetworkedGame::UpdateGame(float dt) {
 		else if (thisClient) {
 			UpdateAsClient(dt);
 		}
-		timeToNextPacket += 1.0f / 30.0f; // 30hz server/client update，降低输入-回传间隔
+		timeToNextPacket += 1.0f / 60.0f; // 30hz server/client update，降低输入-回传间隔
 	}
 
 	if (!inStartMenu && !thisServer && Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
@@ -359,7 +359,7 @@ void NetworkedGame::ReceivePacket(int type, GamePacket* payload, int source) {
 			if (heavyObject) {
 				if (auto* phys = heavyObject->GetPhysicsObject()) {
 					if (currentHeavyGrabbers >= 2) {
-						phys->SetInverseMass(0.5f);
+						phys->SetInverseMass(1.2f); // 变轻以便双人拖拽
 						if (auto* ro = heavyObject->GetRenderObject()) {
 							ro->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f));
 						}
@@ -652,7 +652,7 @@ void NetworkedGame::UpdateAsServer(float dt) {
 		}
 		if (auto* phys = heavyObject->GetPhysicsObject()) {
 			if (heavyGrabCount >= 2) {
-				phys->SetInverseMass(0.5f);
+				phys->SetInverseMass(1.2f); // 变轻以便双人拖拽
 				if (auto* ro = heavyObject->GetRenderObject()) {
 					ro->SetColour(Vector4(0.2f, 0.8f, 0.2f, 1.0f)); // 两人抓取绿色
 				}

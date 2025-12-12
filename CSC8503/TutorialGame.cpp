@@ -65,6 +65,7 @@ TutorialGame::TutorialGame(GameWorld& inWorld, GameTechRendererInterface& inRend
 	defaultTex	= renderer.LoadTexture("Default.png");
 	checkerTex	= renderer.LoadTexture("checkerboard.png");
 	glassTex	= renderer.LoadTexture("stainedglass.tga");
+	skyboxFaceTex = renderer.LoadTexture("Cubemap/skyrender0001.png"); // use one skybox face for UI bg
 
 	checkerMaterial.type		= MaterialType::Opaque;
 	checkerMaterial.diffuseTex	= checkerTex;
@@ -238,17 +239,32 @@ void TutorialGame::UpdateGame(float dt) {
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F2)) {
 		InitCamera(); //F2 will reset the camera to a specific default place
 	}
-	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
-		world.ShuffleConstraints(true);
+	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F8)) {
+		// Ctrl+F9 保留原有 shuffle 功能；单按 F9 切换鼠标显示/锁定
+		if (Window::GetKeyboard()->KeyDown(KeyCodes::CONTROL)) {
+			world.ShuffleConstraints(true);
+		} else {
+			mouseReleased = !mouseReleased;
+			if (auto* win = Window::GetWindow()) {
+				win->ShowOSPointer(mouseReleased);
+				win->LockMouseToWindow(!mouseReleased);
+			}
+			// 离开选中模式，避免再次锁定
+			if (mouseReleased && inSelectionMode) {
+				inSelectionMode = false;
+			}
+		}
 	}
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F10)) {
-		world.ShuffleConstraints(false);
+		if (Window::GetKeyboard()->KeyDown(KeyCodes::CONTROL)) {
+			world.ShuffleConstraints(false);
+		}
 	}
 	
 	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F7)) {
 		world.ShuffleObjects(true);
 	}
-	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F8)) {
+	if (Window::GetKeyboard()->KeyPressed(KeyCodes::F9)) {
 		world.ShuffleObjects(false);
 	}
 
@@ -294,6 +310,9 @@ void TutorialGame::UpdateGame(float dt) {
 void TutorialGame::UpdateThirdPersonCamera(float dt) {
 	if (!playerObject) {
 		return;
+	}
+	if (mouseReleased) {
+		return; // 暂停鼠标控制相机
 	}
 	(void)dt;
 
@@ -371,6 +390,15 @@ void TutorialGame::InitWorld() {
 	sweeperHitActive = false;
 	goalPlate = nullptr;
 	goalTriggered = false;
+	if (auto* win = Window::GetWindow()) {
+		if (mouseReleased) {
+			win->ShowOSPointer(true);
+			win->LockMouseToWindow(false);
+		} else {
+			win->ShowOSPointer(false);
+			win->LockMouseToWindow(true);
+		}
+	}
 	showGameOver = false;
 	highScoreEligible = false;
 	nameSubmitted = false;
@@ -544,8 +572,13 @@ bool TutorialGame::SelectObject() {
 			Window::GetWindow()->LockMouseToWindow(false);
 		}
 		else {
-			Window::GetWindow()->ShowOSPointer(false);
-			Window::GetWindow()->LockMouseToWindow(true);
+			if (mouseReleased) {
+				Window::GetWindow()->ShowOSPointer(true);
+				Window::GetWindow()->LockMouseToWindow(false);
+			} else {
+				Window::GetWindow()->ShowOSPointer(false);
+				Window::GetWindow()->LockMouseToWindow(true);
+			}
 		}
 	}
 	if (inSelectionMode) {
@@ -691,7 +724,19 @@ void TutorialGame::MovePlayer(GameObject* player, float dt, bool keyW, bool keyA
 
 	if (Vector::LengthSquared(moveDir) > 0.0f) {
 		moveDir = Vector::Normalise(moveDir);
-		phys->AddForce(moveDir * playerMoveForce);
+		float moveForce = playerMoveForce;
+		float maxSpeed = playerMaxSpeed;
+		bool pullingHeavy = (grabbedObject == heavyObject);
+		// 联机模式下加大推力和限速，方便拖拽被约束的队友/重物
+		if (currentMode == GameMode::Multi) {
+			moveForce *= 1.8f;
+			maxSpeed *= 1.2f;
+			if (pullingHeavy) {
+				moveForce *= 1.3f; // 抓住重物时再提一档推力
+				maxSpeed  *= 1.25f;
+			}
+		}
+		phys->AddForce(moveDir * moveForce);
 	}
 	// Jump only when grounded
 	if (grounded && keySpace) {
@@ -712,8 +757,15 @@ void TutorialGame::MovePlayer(GameObject* player, float dt, bool keyW, bool keyA
 	}
 
 	float speed = Vector::Length(velocity);
-	if (speed > playerMaxSpeed && speed > 0.0f) {
-		phys->SetLinearVelocity(Vector::Normalise(velocity) * playerMaxSpeed);
+	float maxMoveSpeed = playerMaxSpeed;
+	if (currentMode == GameMode::Multi) {
+		maxMoveSpeed = std::max(maxMoveSpeed, playerMaxSpeed * 1.2f);
+		if (grabbedObject == heavyObject) {
+			maxMoveSpeed = std::max(maxMoveSpeed, playerMaxSpeed * 1.5f);
+		}
+	}
+	if (speed > maxMoveSpeed && speed > 0.0f) {
+		phys->SetLinearVelocity(Vector::Normalise(velocity) * maxMoveSpeed);
 	}
 	else {
 		phys->SetLinearVelocity(velocity);
@@ -823,16 +875,17 @@ void TutorialGame::InitEnemyAgent(const Vector3& pos) {
 	}
 	if (navMesh) {
 		EnemyAI::Params params;
-		params.moveSpeed = 8.0f;
+		params.moveSpeed = (currentMode == GameMode::Multi) ? 3.0f : 8.0f; // 双人模式下显著减速
+		params.chaseSpeed = (currentMode == GameMode::Multi) ? 1.5f : 8.0f; // 追击再降速
 		params.waypointTolerance = 0.5f;
-		params.chaseDistance = 40.0f; // 縮短追擊距離
-		params.loseDistance = 70.0f;
+		params.chaseDistance = 30.0f; // 縮短追擊距離
+		params.loseDistance = 20.0f;
 		params.repathPlayerDelta = 3.0f;
 		params.stuckTime = 1.25f;
 		params.stuckMoveEpsilon = 0.05f;
 		params.recoverDuration = 0.6f;
 		params.pathRefreshTime = 1.0f;
-		params.catchDistance = 3.0f;
+		params.catchDistance = 2.0f;
 		// Define floor bounds (a little above ground to include player feet)
 		params.floorMin = floorCenter - floorHalfSize - Vector3(0, -1.0f, 0);
 		params.floorMax = floorCenter + floorHalfSize + Vector3(0, 2.0f, 0);
@@ -854,16 +907,17 @@ void TutorialGame::InitMazeEnemyAgent(const Vector3& pos) {
 	}
 	if (navMesh) {
 		EnemyAI::Params params;
-		params.moveSpeed = 8.0f;
+		params.moveSpeed = (currentMode == GameMode::Multi) ? 3.0f : 8.0f; // 双人模式下显著减速
+		params.chaseSpeed = (currentMode == GameMode::Multi) ? 1.5f : 8.0f; // 追击再降速
 		params.waypointTolerance = 2.0f;
-		params.chaseDistance = 40.0f; // 縮短追擊距離
-		params.loseDistance = 50.0f;
+		params.chaseDistance = 30.0f; // 縮短追擊距離
+		params.loseDistance = 20.0f;
 		params.repathPlayerDelta = 3.0f;
-		params.stuckTime = 1.25f;
-		params.stuckMoveEpsilon = 0.05f;
+		params.stuckTime = 0.9f;
+		params.stuckMoveEpsilon = 0.10f;
 		params.recoverDuration = 0.6f;
 		params.pathRefreshTime = 1.0f;
-		params.catchDistance = 3.0f;
+		params.catchDistance = 2.0f;
 		params.useFunnel = false;
 		params.floorMin = mazeMin - Vector3(0, -1.0f, 0);
 		params.floorMax = mazeMax + Vector3(0, 2.0f, 0);
@@ -1018,7 +1072,7 @@ void TutorialGame::BuildSlopeScene() {
 		std::uniform_real_distribution<float> distMazeZ(mazeCenter.z - mazeHalfSize.z, mazeCenter.z + mazeHalfSize.z);
 
 		for (int i = 0; i < 20; ++i) {
-			Vector3 coinPos(distMazeX(rng), -2.0f, distMazeZ(rng));
+			Vector3 coinPos(distMazeX(rng), 2.0f, distMazeZ(rng));
 			AddCoinToWorld(coinPos);
 		}
 	}
@@ -1072,7 +1126,7 @@ void TutorialGame::BuildSlopeScene() {
 
 	// 协作重物放在玩家出生附近
 	Vector3 heavyPos = playerSpawnPos + Vector3(5.0f, -2.0f, 8.0f);
-	heavyObject = AddSphereToWorld(heavyPos,2.0f,0.0f);
+	heavyObject = AddSphereToWorld(heavyPos,1.0f,0.0f);
 	if (heavyObject && heavyObject->GetRenderObject()) {
 		heavyObject->GetRenderObject()->SetColour(Vector4(0.4f, 0.25f, 0.1f, 1.0f));
 	}
@@ -1183,7 +1237,7 @@ void TutorialGame::HandleBouncePad(float dt) {
 			Vector3 vel = phys->GetLinearVelocity();
 			vel.y = std::max(vel.y, 0.0f); // 不要向下抵消过头
 			phys->SetLinearVelocity(vel);
-			phys->ApplyLinearImpulse(Vector3(0.0f, playerJumpImpulse * 9.0f, 0.0f));
+			phys->ApplyLinearImpulse(Vector3(0.0f, playerJumpImpulse * 20.0f, 0.0f));
 		}
 		playerOnBouncePad = true;
 	}
@@ -1282,13 +1336,13 @@ void TutorialGame::RenderGameOverUI(float dt) {
 	(void)dt;
 	// 背景图
 	Rendering::Texture* bgTex = glassTex ? glassTex : (defaultTex ? defaultTex : checkerTex);
+	bgTex = skyboxFaceTex ? skyboxFaceTex : bgTex;
 	if (bgTex) {
 		Debug::DrawTex(*bgTex, Vector2(50, 50), Vector2(80, 80), Vector4(1, 1, 1, 0.7f));
 	}
 	Vector2 base(25, 80);
 	Debug::Print("=== GAME OVER ===", base, Debug::YELLOW);
 	Debug::Print("Score: " + std::to_string(playerScore), base - Vector2(0, 5), Debug::WHITE);
-	Debug::Print("Press F1 to return to Menu", base - Vector2(0, 10), Debug::WHITE);
 
 	if (highScoreEligible && !nameSubmitted) {
 		Debug::Print("Congratulations! New High Score", base - Vector2(0, 15), Debug::GREEN);

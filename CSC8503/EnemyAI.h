@@ -12,6 +12,7 @@ namespace NCL::CSC8503 {
 	public:
 		struct Params {
 			float moveSpeed         = 8.0f;
+			float chaseSpeed        = 8.0f;
 			float waypointTolerance = 1.0f;
 			float chaseDistance     = 10.0f;
 			float loseDistance      = 15.0f;
