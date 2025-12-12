@@ -875,8 +875,8 @@ void TutorialGame::InitEnemyAgent(const Vector3& pos) {
 	}
 	if (navMesh) {
 		EnemyAI::Params params;
-		params.moveSpeed = (currentMode == GameMode::Multi) ? 3.0f : 8.0f; // 双人模式下显著减速
-		params.chaseSpeed = (currentMode == GameMode::Multi) ? 1.5f : 8.0f; // 追击再降速
+		params.moveSpeed = (currentMode == GameMode::Multi) ? 3.0f : 4.0f; // 双人模式下显著减速
+		params.chaseSpeed = (currentMode == GameMode::Multi) ? 1.5f : 4.0f; // 追击再降速
 		params.waypointTolerance = 0.5f;
 		params.chaseDistance = 30.0f; // 縮短追擊距離
 		params.loseDistance = 20.0f;
@@ -885,7 +885,7 @@ void TutorialGame::InitEnemyAgent(const Vector3& pos) {
 		params.stuckMoveEpsilon = 0.05f;
 		params.recoverDuration = 0.6f;
 		params.pathRefreshTime = 1.0f;
-		params.catchDistance = 2.0f;
+		params.catchDistance = 3.0f;
 		// Define floor bounds (a little above ground to include player feet)
 		params.floorMin = floorCenter - floorHalfSize - Vector3(0, -1.0f, 0);
 		params.floorMax = floorCenter + floorHalfSize + Vector3(0, 2.0f, 0);
@@ -907,8 +907,8 @@ void TutorialGame::InitMazeEnemyAgent(const Vector3& pos) {
 	}
 	if (navMesh) {
 		EnemyAI::Params params;
-		params.moveSpeed = (currentMode == GameMode::Multi) ? 3.0f : 8.0f; // 双人模式下显著减速
-		params.chaseSpeed = (currentMode == GameMode::Multi) ? 1.5f : 8.0f; // 追击再降速
+		params.moveSpeed = (currentMode == GameMode::Multi) ? 3.0f : 4.0f; // 双人模式下显著减速
+		params.chaseSpeed = (currentMode == GameMode::Multi) ? 1.5f : 4.0f; // 追击再降速
 		params.waypointTolerance = 2.0f;
 		params.chaseDistance = 30.0f; // 縮短追擊距離
 		params.loseDistance = 20.0f;
@@ -917,7 +917,7 @@ void TutorialGame::InitMazeEnemyAgent(const Vector3& pos) {
 		params.stuckMoveEpsilon = 0.10f;
 		params.recoverDuration = 0.6f;
 		params.pathRefreshTime = 1.0f;
-		params.catchDistance = 2.0f;
+		params.catchDistance = 3.0f;
 		params.useFunnel = false;
 		params.floorMin = mazeMin - Vector3(0, -1.0f, 0);
 		params.floorMax = mazeMax + Vector3(0, 2.0f, 0);
@@ -1044,7 +1044,7 @@ void TutorialGame::BuildSlopeScene() {
 
 	// Spawn maze enemy using same AI settings as floor enemy
 	if (mazeHalfSize.x > 0.0f || mazeHalfSize.z > 0.0f) {
-		Vector3 spawn = mazeCenter;
+		Vector3 spawn = mazeCenter +Vector3(0,30,0);
 		spawn.y = mazeMax.y + 2.5f;
 		InitMazeEnemyAgent(spawn);
 	}
